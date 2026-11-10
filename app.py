@@ -22,6 +22,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import agent
 import cvimport
 import db
+import hub
 import llm
 import sources
 
@@ -74,6 +75,19 @@ def api_get(path):
         for k in db.SECRET_KEYS:  # les secrets ne repartent jamais vers le navigateur
             values.pop(k, None)
         return values
+    if path == "/api/summary":
+        cols = "id, title, company, location, score, status, url, applied_at"
+        week_ago = (datetime.date.today() - datetime.timedelta(days=7)).isoformat()
+        return {
+            "total": db.query("SELECT COUNT(*) AS n FROM offers WHERE status NOT IN ('ecartee', 'refus')")[0]["n"],
+            "unscored": db.query("SELECT COUNT(*) AS n FROM offers WHERE score IS NULL")[0]["n"],
+            "by_status": {r["status"]: r["n"] for r in
+                          db.query("SELECT status, COUNT(*) AS n FROM offers GROUP BY status")},
+            "top": db.query(f"SELECT {cols} FROM offers WHERE score >= 60 AND status IN "
+                            "('nouvelle', 'a_postuler') ORDER BY score DESC, id DESC LIMIT 10"),
+            "relances": db.query(f"SELECT {cols} FROM offers WHERE status = 'postulee' "
+                                 "AND applied_at <= ? ORDER BY applied_at", (week_ago,)),
+        }
     if path == "/api/export":
         return {"settings": {r["key"]: json.loads(r["value"]) for r in
                              db.query("SELECT key, value FROM settings")},
@@ -116,7 +130,10 @@ def api_post(path, body):
         return {"scored": scored, "left": left}
     if path == "/api/profile/import":
         files = body.get("files")
-        return cvimport.build_profile(s, files if isinstance(files, list) else [])
+        result = cvimport.build_profile(s, files if isinstance(files, list) else [])
+        hub.send_event("profil", f"Profil déduit de ses CV : {result.get('resume')}\n"
+                                 f"Postes recherchés : {result.get('keywords')}")
+        return result
     if path == "/api/offers/manual":
         o = sources.manual(body.get("text"))
         return {"new": db.add_offer(o)}
@@ -136,11 +153,24 @@ def api_post(path, body):
                     applied = datetime.date.today().isoformat()
                 db.execute("UPDATE offers SET status=?, applied_at=? WHERE id=?",
                            (body["status"], applied, o["id"]))
+                if body["status"] in ("ecartee", "a_postuler", "postulee") and body["status"] != o["status"]:
+                    label = {"ecartee": "a ÉCARTÉ", "a_postuler": "a RETENU (à postuler)",
+                             "postulee": "a POSTULÉ à"}[body["status"]]
+                    hub.send_event("decision_offre", (
+                        f"Le candidat {label} cette offre.\nPoste : {o['title']}\nEntreprise : {o['company']}\n"
+                        f"Lieu : {o['location']}\nContrat : {o['contract']}\nSalaire : {o['salary']}\n"
+                        f"Score donné par l'agent : {o['score']} ({o['score_reason']})\n"
+                        f"Notes du candidat : {o['notes']}\nExtrait : {(o['description'] or '')[:700]}"))
             if "notes" in body:
                 db.execute("UPDATE offers SET notes=? WHERE id=?", (str(body["notes"]), o["id"]))
             for col in ("cv_md", "letter_md"):
                 if col in body:
                     db.execute(f"UPDATE offers SET {col}=? WHERE id=?", (str(body[col]), o["id"]))
+                    if o[col] and str(body[col]).strip() != o[col].strip():
+                        kind = "CV" if col == "cv_md" else "lettre de motivation"
+                        hub.send_event("correction_texte", (
+                            f"Le candidat a corrigé à la main un texte ({kind}) rédigé par l'agent.\n\n"
+                            f"AVANT :\n{o[col][:3500]}\n\nAPRÈS :\n{str(body[col])[:3500]}"))
             return {"ok": True}
         if action == "generate":
             return agent.generate_application(s, o)
@@ -262,6 +292,11 @@ class Handler(BaseHTTPRequestHandler):
         if origin and urllib.parse.urlsplit(origin).netloc != host:
             self._send(403, {"error": "Origine refusée."})
             return False
+        # L'agent chef s'identifie avec le jeton partagé HUB_TOKEN (routes /api/ uniquement)
+        token = os.getenv("HUB_TOKEN") or ""
+        given = (self.headers.get("Authorization") or "").removeprefix("Bearer ").strip()
+        if token and path.startswith("/api/") and secrets.compare_digest(given.encode(), token.encode()):
+            return True
         if not os.getenv("APP_PASSWORD"):
             if os.getenv("RENDER"):
                 self._send(503, {"error": "APP_PASSWORD n'est pas défini dans les variables "

@@ -63,6 +63,13 @@ Réglages, puis « Restaurer une sauvegarde ».
 Claude Code tourne sans aucun outil, dans un dossier vide, et ne voit que le jeton
 d'abonnement : ni le mot de passe de l'appli ni tes identifiants mail.
 
+## Lien avec l'agent chef (facultatif)
+
+Avec les variables `HUB_URL` (adresse de l'agent chef) et `HUB_TOKEN` (secret partagé), l'agent
+emploi relit la mémoire commune avant de noter, rédiger ou préparer un entretien, et signale à
+l'agent chef tes décisions (offre écartée, retenue, postulée), tes corrections de textes et tes
+entretiens simulés. Sans ces variables, ou si l'agent chef est injoignable, rien ne change.
+
 ## À savoir
 
 - Chaque appel à Claude prend de 10 secondes à 2 minutes et consomme ton quota d'abonnement.
