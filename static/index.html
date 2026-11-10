@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agent emploi</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <h1>Agent emploi</h1>
+  <nav>
+    <button data-tab="offers" class="active">Annonces</button>
+    <button data-tab="profile">Profil</button>
+    <button data-tab="config">Réglages</button>
+  </nav>
+</header>
+<div id="toast" hidden></div>
+
+<main>
+<section id="tab-offers">
+  <div class="toolbar">
+    <button id="btn-collect" class="primary">Chercher des annonces</button>
+    <button id="btn-score">Noter les nouvelles</button>
+    <button id="btn-manual">Coller une annonce</button>
+    <select id="filter">
+      <option value="active">En cours</option>
+      <option value="all">Toutes</option>
+      <option value="nouvelle">Nouvelles</option>
+      <option value="a_postuler">À postuler</option>
+      <option value="postulee">Postulées</option>
+      <option value="entretien">Entretiens</option>
+      <option value="ecartee">Écartées</option>
+    </select>
+  </div>
+  <div id="manual-box" class="card" hidden>
+    <textarea id="manual-text" rows="6" placeholder="Colle ici le texte de l'annonce, ou seulement son lien"></textarea>
+    <button id="manual-add" class="primary">Ajouter</button>
+  </div>
+  <div class="split">
+    <ul id="offer-list"></ul>
+    <article id="detail" class="card" hidden></article>
+  </div>
+</section>
+
+<section id="tab-profile" hidden>
+  <div class="card">
+    <h2>CV maître</h2>
+    <p class="hint">Colle ici ton parcours complet : toutes tes expériences, réalisations chiffrées, compétences, formations, langues. Plus il est détaillé, meilleurs sont les CV adaptés. L'agent n'utilise que ce qui est écrit ici, il n'invente rien.</p>
+    <textarea id="cv_master" rows="18"></textarea>
+    <h2>Recherche</h2>
+    <label>Mots-clés du poste <input id="keywords" placeholder="ex. chef de projet digital"></label>
+    <label>Ville ou région (Adzuna) <input id="location" placeholder="ex. Lyon"></label>
+    <label>Numéro de département (France Travail) <input id="departement" placeholder="ex. 69"></label>
+    <label>Autres critères, en clair
+      <textarea id="criteria" rows="4" placeholder="ex. CDI, 45 k€ minimum, 2 jours de télétravail, pas d'ESN"></textarea></label>
+    <button class="primary save" data-keys="cv_master,keywords,location,departement,criteria">Enregistrer</button>
+  </div>
+</section>
+
+<section id="tab-config" hidden>
+  <div class="card">
+    <h2>France Travail</h2>
+    <p class="hint">Crée une application sur francetravail.io (API « Offres d'emploi v2 ») pour obtenir ces identifiants.</p>
+    <label>Identifiant client <input id="ft_client_id"></label>
+    <label>Clé secrète <input id="ft_client_secret" type="password"></label>
+    <h2>Adzuna</h2>
+    <p class="hint">Clé gratuite sur developer.adzuna.com.</p>
+    <label>App ID <input id="adzuna_app_id"></label>
+    <label>App key <input id="adzuna_app_key" type="password"></label>
+    <h2>Alertes mail (IMAP)</h2>
+    <p class="hint">Pour Gmail : serveur imap.gmail.com et un « mot de passe d'application », pas ton mot de passe habituel. La boîte est ouverte en lecture seule.</p>
+    <label>Serveur IMAP <input id="imap_host" placeholder="imap.gmail.com"></label>
+    <label>Adresse mail <input id="imap_user"></label>
+    <label>Mot de passe d'application <input id="imap_password" type="password"></label>
+    <label>Expéditeurs des alertes, séparés par des virgules <input id="imap_senders" placeholder="linkedin.com, indeed.com, welcometothejungle.com"></label>
+    <label>Remonter sur combien de jours <input id="imap_days" type="number" min="1" max="30" placeholder="3"></label>
+    <button class="primary save" data-keys="ft_client_id,ft_client_secret,adzuna_app_id,adzuna_app_key,imap_host,imap_user,imap_password,imap_senders,imap_days">Enregistrer</button>
+  </div>
+</section>
+</main>
+
+<div id="interview" class="overlay" hidden>
+  <div class="card">
+    <button id="iv-close" class="close" aria-label="Fermer">×</button>
+    <h2 id="iv-title">Simulation d'entretien</h2>
+    <p id="iv-progress" class="hint"></p>
+    <p id="iv-question"></p>
+    <textarea id="iv-answer" rows="7" placeholder="Ta réponse apparaît ici pendant que tu parles. Tu peux aussi la taper ou la corriger."></textarea>
+    <p id="iv-status" class="hint"></p>
+    <div class="toolbar">
+      <button id="iv-mic">🎙 Parler</button>
+      <button id="iv-repeat">Répéter la question</button>
+      <button id="iv-next" class="primary">Question suivante</button>
+    </div>
+    <div id="iv-feedback" class="md"></div>
+  </div>
+</div>
+<script src="app.js"></script>
+</body>
+</html>
