@@ -5,7 +5,8 @@ lettre adaptés, suit tes candidatures et te fait passer des entretiens simulés
 
 ## Prérequis
 
-- Python 3.9 ou plus récent (aucune bibliothèque à installer).
+- Python 3.9 ou plus récent. Une seule bibliothèque, pour lire les CV en PDF :
+  `pip install -r requirements.txt` (le reste fonctionne sans).
 - Claude Code installé et connecté avec ton abonnement : lance `claude` une fois dans un
   terminal pour vérifier. L'appli appelle `claude -p` en arrière-plan.
 - Chrome ou Edge pour la simulation vocale (Firefox ne gère pas la reconnaissance vocale ;
@@ -19,7 +20,10 @@ Puis ouvre http://127.0.0.1:8765 (autre port : `python app.py 9000`).
 
 ## Mise en route
 
-1. **Profil** : colle ton CV maître complet et tes critères, puis enregistre.
+1. **Profil** : importe tes CV existants (PDF, DOCX, ODT, TXT). L'agent les fusionne en CV
+   maître, en déduit les postes à viser et le lieu, puis cherche et note les offres. Tu peux
+   aussi coller ton CV maître et saisir tes critères à la main. Relis le résultat : tout est
+   modifiable.
 2. **Réglages** : ajoute les identifiants des sources que tu veux utiliser.
    - France Travail : compte sur francetravail.io, application abonnée à l'API
      « Offres d'emploi v2 ».
@@ -62,7 +66,7 @@ d'abonnement : ni le mot de passe de l'appli ni tes identifiants mail.
 ## À savoir
 
 - Chaque appel à Claude prend de 10 secondes à 2 minutes et consomme ton quota d'abonnement.
-  La notation traite 8 annonces par appel.
+  La notation traite 8 annonces par appel, 40 par clic au maximum.
 - Tout est stocké dans `data.sqlite3`, à côté du code, y compris tes identifiants en clair.
   Ne partage pas ce fichier et ne le commite pas (il est dans `.gitignore`).
 - En local, le serveur n'écoute que sur 127.0.0.1. Sur Render, tout passe par la page de connexion.
@@ -72,5 +76,5 @@ d'abonnement : ni le mot de passe de l'appli ni tes identifiants mail.
 ## Fichiers
 
 - `app.py` : serveur et routes — `agent.py` : prompts (tri, rédaction, coaching)
-- `sources.py` : collecte — `llm.py` : appel à Claude Code — `db.py` : base SQLite
+- `cvimport.py` : import des CV et profil automatique — `sources.py` : collecte — `llm.py` : appel à Claude Code — `db.py` : base SQLite
 - `static/` : interface

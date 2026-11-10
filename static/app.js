@@ -92,13 +92,59 @@ function renderList() {
 $("#filter").onchange = renderList;
 $("#btn-collect").onclick = (e) => busy(e.target, "Recherche en cours…", async () => {
   const r = await api("/api/collect", {});
-  const names = { france_travail: "France Travail", adzuna: "Adzuna", mail: "Alertes mail" };
-  toast(Object.entries(r).map(([k, v]) => `${names[k]} : ${v.error ? v.error : v.new + " nouvelle(s)"}`).join(" — "), 9000);
+  toast(Object.entries(r).map(([k, v]) => `${SOURCE_NAMES[k]} : ${v.error ? v.error : v.new + " nouvelle(s)"}`).join(" — "), 9000);
   await loadOffers();
 });
 $("#btn-score").onclick = (e) => busy(e.target, "Notation en cours…", async () => {
-  const r = await api("/api/score", {}); toast(`${r.scored} annonce(s) notée(s).`); await loadOffers();
+  const r = await api("/api/score", {});
+  toast(`${r.scored} annonce(s) notée(s).` + (r.left ? ` Il en reste ${r.left} : reclique pour continuer.` : ""), 7000);
+  await loadOffers();
 });
+
+// ---------- import de CV : profil automatique, puis recherche et notation ----------
+const SOURCE_NAMES = { france_travail: "France Travail", adzuna: "Adzuna", mail: "Alertes mail" };
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(String(r.result).split(",")[1] || "");
+    r.onerror = () => reject(new Error("Lecture impossible : " + file.name));
+    r.readAsDataURL(file);
+  });
+}
+$("#btn-import").onclick = async (e) => {
+  const btn = e.target, files = [...$("#cv-files").files], box = $("#import-result");
+  if (!files.length) return toast("Choisis d'abord un ou plusieurs CV.");
+  if (files.length > 10) return toast("10 fichiers au maximum.");
+  if (files.reduce((n, f) => n + f.size, 0) > 20e6) return toast("Fichiers trop lourds (20 Mo au total).");
+  const old = btn.textContent; btn.disabled = true;
+  const step = (t) => (btn.textContent = t);
+  try {
+    step("1/3 Lecture des CV et définition du profil…");
+    const payload = [];
+    for (const f of files) payload.push({ name: f.name, data: await fileToBase64(f) });
+    const p = await api("/api/profile/import", { files: payload });
+    await loadSettings();
+    let html = `<h3>Profil défini à partir de ${p.files.length} CV</h3><p>${esc(p.resume)}</p>
+      <p><strong>Postes recherchés :</strong> ${esc(p.keywords)}</p>`;
+    if (p.a_verifier.length) html += `<p><strong>À vérifier dans tes CV :</strong></p><ul>${p.a_verifier.map((x) => `<li>${esc(x)}</li>`).join("")}</ul>`;
+    box.innerHTML = html; box.hidden = false;
+    step("2/3 Recherche des offres…");
+    const c = await api("/api/collect", {});
+    const found = Object.values(c).reduce((n, v) => n + (v.new || 0), 0);
+    const errors = Object.entries(c).filter(([, v]) => v.error).map(([k, v]) => `${SOURCE_NAMES[k]} : ${v.error}`);
+    if (!found) {
+      box.innerHTML += `<p><strong>Aucune nouvelle offre trouvée.</strong> ${errors.length ? "Sources à configurer dans Réglages :" : "Élargis les postes ou le lieu ci-dessous, puis relance la recherche depuis l'onglet Annonces."}</p>
+        ${errors.length ? `<ul>${errors.map((x) => `<li>${esc(x)}</li>`).join("")}</ul>` : ""}`;
+      return;
+    }
+    step(`3/3 Notation de ${found} offre(s)…`);
+    const r = await api("/api/score", {});
+    await loadOffers();
+    toast(`${found} offre(s) trouvée(s), ${r.scored} notée(s).` + (r.left ? ` Il en reste ${r.left} à noter.` : ""), 9000);
+    document.querySelector('nav button[data-tab="offers"]').click();
+  } catch (er) { toast(er.message, 9000); }
+  finally { btn.disabled = false; btn.textContent = old; }
+};
 $("#btn-manual").onclick = () => ($("#manual-box").hidden = !$("#manual-box").hidden);
 $("#manual-add").onclick = (e) => busy(e.target, "Analyse…", async () => {
   const r = await api("/api/offers/manual", { text: $("#manual-text").value });

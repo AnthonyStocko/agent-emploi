@@ -12,6 +12,9 @@ RUN ln -s /usr/local/lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm \
 RUN useradd --create-home app && mkdir -p /home/app/src && chown app:app /home/app/src
 WORKDIR /home/app/src
 
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
 COPY --chown=app:app . .
 USER app
 

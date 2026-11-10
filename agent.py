@@ -23,10 +23,12 @@ def _offer_text(o, limit=6000):
             f"Contrat : {o['contract']}\nSalaire : {o['salary']}\n\n{(o['description'] or '')[:limit]}")
 
 
-def score_pending(s, batch=8):
-    """Note de 0 à 100 chaque annonce non encore évaluée."""
+def score_pending(s, batch=8, max_batches=5):
+    """Note de 0 à 100 les annonces non évaluées, les plus récentes d'abord (40 par appel
+    au maximum, pour ménager le quota de l'abonnement). Renvoie (notées, restantes)."""
     profile = _profile(s)
-    pending = db.query("SELECT * FROM offers WHERE score IS NULL ORDER BY id")
+    pending = db.query("SELECT * FROM offers WHERE score IS NULL ORDER BY id DESC "
+                       "LIMIT ?", (batch * max_batches,))
     done = 0
     for i in range(0, len(pending), batch):
         chunk = pending[i:i + batch]
@@ -46,7 +48,8 @@ def score_pending(s, batch=8):
                 db.execute("UPDATE offers SET score=?, score_reason=? WHERE id=?",
                            (sc, str(r.get("raison", "")), oid))
                 done += 1
-    return done
+    left = db.query("SELECT COUNT(*) AS n FROM offers WHERE score IS NULL")[0]["n"]
+    return done, left
 
 
 def generate_application(s, o):

@@ -42,6 +42,12 @@ def html_to_text(raw):
     return re.sub(r"\n\s*\n+", "\n\n", raw).strip()
 
 
+def keyword_list(s):
+    """Postes à rechercher : un par ligne ou séparés par des virgules (4 recherches au maximum)."""
+    items = [k.strip() for k in re.split(r"[,;\n]+", s.get("keywords") or "") if k.strip()]
+    return items[:4] or [""]
+
+
 # ---------- France Travail ----------
 def france_travail(s):
     cid, secret = s.get("ft_client_id"), s.get("ft_client_secret")
@@ -53,26 +59,28 @@ def france_travail(s):
     tok = json.loads(_http(
         "https://entreprise.francetravail.fr/connexion/oauth2/access_token?realm=%2Fpartenaire",
         data=body, headers={"Content-Type": "application/x-www-form-urlencoded"}))
-    params = {"motsCles": s.get("keywords", ""), "range": "0-49"}
-    if s.get("departement"):
-        params["departement"] = s["departement"]
-    raw = _http("https://api.francetravail.io/partenaire/offresdemploi/v2/offres/search?"
-                + urllib.parse.urlencode(params),
-                headers={"Authorization": "Bearer " + tok["access_token"],
-                         "Accept": "application/json"})
-    if not raw.strip():
-        return []
-    out = []
-    for r in json.loads(raw).get("resultats", []):
-        out.append({
-            "source": "France Travail", "ext_id": r.get("id"), "title": r.get("intitule"),
-            "company": (r.get("entreprise") or {}).get("nom"),
-            "location": (r.get("lieuTravail") or {}).get("libelle"),
-            "contract": r.get("typeContratLibelle") or r.get("typeContrat"),
-            "salary": (r.get("salaire") or {}).get("libelle"),
-            "url": (r.get("origineOffre") or {}).get("urlOrigine")
-                   or f"https://candidat.francetravail.fr/offres/recherche/detail/{r.get('id')}",
-            "description": r.get("description"), "published": r.get("dateCreation")})
+    out, seen = [], set()
+    for kw in keyword_list(s):
+        params = {"motsCles": kw, "range": "0-29"}
+        if s.get("departement"):
+            params["departement"] = s["departement"]
+        raw = _http("https://api.francetravail.io/partenaire/offresdemploi/v2/offres/search?"
+                    + urllib.parse.urlencode(params),
+                    headers={"Authorization": "Bearer " + tok["access_token"],
+                             "Accept": "application/json"})
+        for r in (json.loads(raw).get("resultats", []) if raw.strip() else []):
+            if r.get("id") in seen:
+                continue
+            seen.add(r.get("id"))
+            out.append({
+                "source": "France Travail", "ext_id": r.get("id"), "title": r.get("intitule"),
+                "company": (r.get("entreprise") or {}).get("nom"),
+                "location": (r.get("lieuTravail") or {}).get("libelle"),
+                "contract": r.get("typeContratLibelle") or r.get("typeContrat"),
+                "salary": (r.get("salaire") or {}).get("libelle"),
+                "url": (r.get("origineOffre") or {}).get("urlOrigine")
+                       or f"https://candidat.francetravail.fr/offres/recherche/detail/{r.get('id')}",
+                "description": r.get("description"), "published": r.get("dateCreation")})
     return out
 
 
@@ -81,21 +89,25 @@ def adzuna(s):
     app_id, key = s.get("adzuna_app_id"), s.get("adzuna_app_key")
     if not (app_id and key):
         raise SourceError("Identifiants Adzuna manquants (onglet Réglages).")
-    params = {"app_id": app_id, "app_key": key, "results_per_page": 50,
-              "what": s.get("keywords", ""), "content-type": "application/json"}
-    if s.get("location"):
-        params["where"] = s["location"]
-    raw = _http("https://api.adzuna.com/v1/api/jobs/fr/search/1?" + urllib.parse.urlencode(params))
-    out = []
-    for r in json.loads(raw).get("results", []):
-        lo, hi = r.get("salary_min"), r.get("salary_max")
-        salary = f"{int(lo)} – {int(hi)} €/an" if lo and hi else (f"{int(lo)} €/an" if lo else "")
-        out.append({
-            "source": "Adzuna", "ext_id": r.get("id"), "title": html_to_text(r.get("title") or ""),
-            "company": (r.get("company") or {}).get("display_name"),
-            "location": (r.get("location") or {}).get("display_name"),
-            "contract": r.get("contract_type"), "salary": salary, "url": r.get("redirect_url"),
-            "description": html_to_text(r.get("description") or ""), "published": r.get("created")})
+    out, seen = [], set()
+    for kw in keyword_list(s):
+        params = {"app_id": app_id, "app_key": key, "results_per_page": 30,
+                  "what": kw, "sort_by": "date", "content-type": "application/json"}
+        if s.get("location"):
+            params["where"] = s["location"]
+        raw = _http("https://api.adzuna.com/v1/api/jobs/fr/search/1?" + urllib.parse.urlencode(params))
+        for r in json.loads(raw).get("results", []):
+            if r.get("id") in seen:
+                continue
+            seen.add(r.get("id"))
+            lo, hi = r.get("salary_min"), r.get("salary_max")
+            salary = f"{int(lo)} – {int(hi)} €/an" if lo and hi else (f"{int(lo)} €/an" if lo else "")
+            out.append({
+                "source": "Adzuna", "ext_id": r.get("id"), "title": html_to_text(r.get("title") or ""),
+                "company": (r.get("company") or {}).get("display_name"),
+                "location": (r.get("location") or {}).get("display_name"),
+                "contract": r.get("contract_type"), "salary": salary, "url": r.get("redirect_url"),
+                "description": html_to_text(r.get("description") or ""), "published": r.get("created")})
     return out
 
 

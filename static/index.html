@@ -45,12 +45,19 @@
 </section>
 
 <section id="tab-profile" hidden>
+  <div class="card" style="margin-bottom:16px">
+    <h2>Importer mes CV</h2>
+    <p class="hint">Sélectionne les CV que tu as déjà rédigés (PDF, DOCX, ODT, TXT — 10 au maximum). L'agent les fusionne en un CV maître, en déduit les postes à viser, puis cherche et note les offres. Compte 2 à 5 minutes.</p>
+    <input id="cv-files" type="file" multiple accept=".pdf,.docx,.odt,.txt,.md">
+    <div class="toolbar"><button id="btn-import" class="primary">Définir mon profil et proposer des offres</button></div>
+    <div id="import-result" class="md" hidden></div>
+  </div>
   <div class="card">
     <h2>CV maître</h2>
     <p class="hint">Colle ici ton parcours complet : toutes tes expériences, réalisations chiffrées, compétences, formations, langues. Plus il est détaillé, meilleurs sont les CV adaptés. L'agent n'utilise que ce qui est écrit ici, il n'invente rien.</p>
     <textarea id="cv_master" rows="18"></textarea>
     <h2>Recherche</h2>
-    <label>Mots-clés du poste <input id="keywords" placeholder="ex. chef de projet digital"></label>
+    <label>Postes recherchés, séparés par des virgules (4 au maximum) <input id="keywords" placeholder="ex. chef de projet digital, product owner"></label>
     <label>Ville ou région (Adzuna) <input id="location" placeholder="ex. Lyon"></label>
     <label>Numéro de département (France Travail) <input id="departement" placeholder="ex. 69"></label>
     <label>Autres critères, en clair

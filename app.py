@@ -20,6 +20,7 @@ import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import agent
+import cvimport
 import db
 import llm
 import sources
@@ -111,7 +112,11 @@ def api_post(path, body):
                 report[name] = {"error": str(e)}
         return report
     if path == "/api/score":
-        return {"scored": agent.score_pending(s)}
+        scored, left = agent.score_pending(s)
+        return {"scored": scored, "left": left}
+    if path == "/api/profile/import":
+        files = body.get("files")
+        return cvimport.build_profile(s, files if isinstance(files, list) else [])
     if path == "/api/offers/manual":
         o = sources.manual(body.get("text"))
         return {"new": db.add_offer(o)}
@@ -293,7 +298,7 @@ class Handler(BaseHTTPRequestHandler):
             self._send(200, fn(*args))
         except ApiError as e:
             self._send(e.code, {"error": str(e)})
-        except (llm.LLMError, sources.SourceError) as e:
+        except (llm.LLMError, sources.SourceError, cvimport.ImportError_) as e:
             self._send(400, {"error": str(e)})
         except Exception as e:  # dernière barrière : l'appli ne doit pas tomber
             print(f"Erreur interne : {e!r}", flush=True)
@@ -334,7 +339,7 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(303, b"", "text/plain", [("Location", "/login"), self._cookie("", 0)])
         try:
             length = int(self.headers.get("Content-Length") or 0)
-            if length > 20_000_000:
+            if length > 30_000_000:
                 raise ValueError
             body = json.loads(self.rfile.read(length) or b"{}")
             if not isinstance(body, dict):
