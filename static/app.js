@@ -9,6 +9,7 @@ async function api(path, body) {
   const res = await fetch(path, body === undefined ? {} : {
     method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
   const data = await res.json().catch(() => ({ error: "Réponse illisible du serveur." }));
+  if (res.status === 401) { location.href = "/login"; throw new Error("Connexion requise."); }
   if (!res.ok) throw new Error(data.error || "Erreur");
   return data;
 }
@@ -49,9 +50,21 @@ document.querySelectorAll("nav button").forEach((b) => b.onclick = () => {
 async function loadSettings() {
   const s = await api("/api/settings");
   for (const [k, v] of Object.entries(s)) { const el = document.getElementById(k); if (el) el.value = v; }
+  for (const k of s._secrets_set || []) { const el = document.getElementById(k); if (el) el.placeholder = "•••• déjà défini (laisser vide pour garder)"; }
+  for (const k of s._from_env || []) { const el = document.getElementById(k); if (el) { el.disabled = true; el.title = "Défini par une variable d'environnement"; } }
+  $("#logout").hidden = !s._auth;
 }
+$("#btn-restore").onclick = () => $("#restore-file").click();
+$("#restore-file").onchange = async (e) => {
+  const file = e.target.files[0]; e.target.value = "";
+  if (!file || !confirm("Remplacer toutes les données actuelles par cette sauvegarde ?")) return;
+  try {
+    const r = await api("/api/import", JSON.parse(await file.text()));
+    toast(`Sauvegarde restaurée : ${r.offers} annonce(s).`); await loadSettings(); await loadOffers();
+  } catch (er) { toast("Restauration impossible : " + er.message, 7000); }
+};
 document.querySelectorAll("button.save").forEach((b) => b.onclick = () => busy(b, "Enregistrement…", async () => {
-  const body = {}; for (const k of b.dataset.keys.split(",")) body[k] = document.getElementById(k).value.trim();
+  const body = {}; for (const k of b.dataset.keys.split(",")) { const el = document.getElementById(k); if (!el.disabled) body[k] = el.value.trim(); }
   await api("/api/settings", body); toast("Enregistré.");
 }));
 

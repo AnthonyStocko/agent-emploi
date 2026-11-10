@@ -4,7 +4,15 @@ import os
 import sqlite3
 import threading
 
-DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data.sqlite3")
+# DATA_DIR déplace la base (disque persistant Render, par exemple) ; par défaut, à côté du code.
+DATA_DIR = os.getenv("DATA_DIR") or os.path.dirname(os.path.abspath(__file__))
+os.makedirs(DATA_DIR, exist_ok=True)
+DB_PATH = os.path.join(DATA_DIR, "data.sqlite3")
+# Réglages qui peuvent venir des variables d'environnement (persistantes sur Render, prioritaires sur
+# la base) : FT_CLIENT_ID, FT_CLIENT_SECRET, ADZUNA_APP_ID, ADZUNA_APP_KEY, IMAP_HOST, IMAP_USER, ...
+ENV_KEYS = ["ft_client_id", "ft_client_secret", "adzuna_app_id", "adzuna_app_key",
+            "imap_host", "imap_user", "imap_password", "imap_senders", "imap_days"]
+SECRET_KEYS = {"ft_client_secret", "adzuna_app_key", "imap_password"}
 _lock = threading.Lock()
 
 SCHEMA = """
@@ -51,7 +59,11 @@ def execute(sql, params=()):
 
 
 def get_settings():
-    return {r["key"]: json.loads(r["value"]) for r in query("SELECT key, value FROM settings")}
+    values = {r["key"]: json.loads(r["value"]) for r in query("SELECT key, value FROM settings")}
+    for key in ENV_KEYS:
+        if os.getenv(key.upper()):
+            values[key] = os.getenv(key.upper())
+    return values
 
 
 def set_settings(values):

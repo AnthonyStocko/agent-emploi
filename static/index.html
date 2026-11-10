@@ -13,6 +13,7 @@
     <button data-tab="offers" class="active">Annonces</button>
     <button data-tab="profile">Profil</button>
     <button data-tab="config">Réglages</button>
+    <form id="logout" method="post" action="/logout" hidden style="display:inline"><button>Déconnexion</button></form>
   </nav>
 </header>
 <div id="toast" hidden></div>
@@ -76,6 +77,15 @@
     <label>Expéditeurs des alertes, séparés par des virgules <input id="imap_senders" placeholder="linkedin.com, indeed.com, welcometothejungle.com"></label>
     <label>Remonter sur combien de jours <input id="imap_days" type="number" min="1" max="30" placeholder="3"></label>
     <button class="primary save" data-keys="ft_client_id,ft_client_secret,adzuna_app_id,adzuna_app_key,imap_host,imap_user,imap_password,imap_senders,imap_days">Enregistrer</button>
+  </div>
+  <div class="card" style="margin-top:16px">
+    <h2>Sauvegarde</h2>
+    <p class="hint">Sur Render sans disque persistant, la base est effacée à chaque redéploiement. Télécharge une sauvegarde régulièrement, puis restaure-la si besoin. Le fichier contient ton CV et tes identifiants : garde-le pour toi.</p>
+    <div class="toolbar">
+      <a href="/api/export" download="agent-emploi-sauvegarde.json"><button type="button">Télécharger une sauvegarde</button></a>
+      <button id="btn-restore" type="button">Restaurer une sauvegarde</button>
+      <input id="restore-file" type="file" accept="application/json,.json" hidden>
+    </div>
   </div>
 </section>
 </main>

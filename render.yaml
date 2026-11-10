@@ -1,0 +1,20 @@
+# Déploiement Render : New > Blueprint, puis choisir ce dépôt.
+services:
+  - type: web
+    name: agent-emploi
+    runtime: docker
+    plan: free
+    healthCheckPath: /healthz
+    envVars:
+      - key: APP_USERNAME
+        value: admin
+      - key: APP_PASSWORD            # mot de passe de l'appli (obligatoire)
+        sync: false
+      - key: CLAUDE_CODE_OAUTH_TOKEN # jeton d'abonnement : `claude setup-token` sur ton PC
+        sync: false
+    # Pour garder la base entre deux déploiements (offre payante) : décommente et ajoute
+    # la variable DATA_DIR=/data
+    # disk:
+    #   name: data
+    #   mountPath: /data
+    #   sizeGB: 1

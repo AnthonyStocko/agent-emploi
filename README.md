@@ -35,13 +35,37 @@ Puis ouvre http://127.0.0.1:8765 (autre port : `python app.py 9000`).
 Le recruteur pose 6 questions à voix haute, ta réponse est transcrite en direct (tu peux la
 corriger), puis le coach rend un retour détaillé, conservé dans la fiche de l'annonce.
 
+## Déploiement sur Render (avec ton abonnement Claude)
+
+Même principe que agent-perso : Claude Code est installé dans l'image Docker et se connecte
+avec un jeton d'abonnement.
+
+1. Sur ton PC : `claude setup-token`, puis copie le jeton (`sk-ant-oat01-…`).
+2. Sur Render : New > Blueprint, choisis ce dépôt (le fichier `render.yaml` crée le service).
+3. Renseigne les variables demandées :
+   - `APP_PASSWORD` : le mot de passe de l'appli (obligatoire, l'appli refuse de démarrer sans).
+   - `CLAUDE_CODE_OAUTH_TOKEN` : le jeton de l'étape 1.
+   - `APP_USERNAME` : identifiant de connexion (`admin` par défaut).
+4. Facultatif, pour ne pas ressaisir les sources après chaque déploiement : `FT_CLIENT_ID`,
+   `FT_CLIENT_SECRET`, `ADZUNA_APP_ID`, `ADZUNA_APP_KEY`, `IMAP_HOST`, `IMAP_USER`,
+   `IMAP_PASSWORD`, `IMAP_SENDERS`, `IMAP_DAYS`. Autres réglages : `CLAUDE_CLI_MODEL`,
+   `CLI_TIMEOUT_SECONDS`, `APP_SESSION_DAYS`, `APP_SESSION_SECRET`.
+
+**Données** : sans disque persistant, la base (CV maître, annonces, suivi) est effacée à chaque
+redéploiement ou redémarrage. Deux solutions : un disque Render monté sur `/data` avec
+`DATA_DIR=/data` (voir `render.yaml`), ou le bouton « Télécharger une sauvegarde » de l'onglet
+Réglages, puis « Restaurer une sauvegarde ».
+
+Claude Code tourne sans aucun outil, dans un dossier vide, et ne voit que le jeton
+d'abonnement : ni le mot de passe de l'appli ni tes identifiants mail.
+
 ## À savoir
 
 - Chaque appel à Claude prend de 10 secondes à 2 minutes et consomme ton quota d'abonnement.
   La notation traite 8 annonces par appel.
 - Tout est stocké dans `data.sqlite3`, à côté du code, y compris tes identifiants en clair.
   Ne partage pas ce fichier et ne le commite pas (il est dans `.gitignore`).
-- Le serveur n'écoute que sur 127.0.0.1 et refuse les requêtes venant d'autres sites.
+- En local, le serveur n'écoute que sur 127.0.0.1. Sur Render, tout passe par la page de connexion.
 - L'agent a pour consigne de ne rien inventer, mais relis toujours CV et lettre avant envoi.
 - Statut « Postulée » : l'étiquette « À relancer » apparaît au bout de 7 jours.
 
