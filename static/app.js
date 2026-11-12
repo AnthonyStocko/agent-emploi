@@ -2,7 +2,7 @@
 const $ = (s) => document.querySelector(s);
 const STATUS = { nouvelle: "Nouvelle", a_postuler: "À postuler", postulee: "Postulée",
   entretien: "Entretien", refus: "Refus", offre: "Offre reçue", ecartee: "Écartée" };
-let offers = [], current = null;
+let offers = [], current = null, settings = {};
 
 // ---------- utilitaires ----------
 async function api(path, body) {
@@ -13,14 +13,14 @@ async function api(path, body) {
   if (!res.ok) throw new Error(data.error || "Erreur");
   return data;
 }
-function toast(msg, ms = 4000) {
-  const t = $("#toast"); t.textContent = msg; t.hidden = false;
+function toast(msg, ms = 4000, error = false) {
+  const t = $("#toast"); t.textContent = msg; t.hidden = false; t.classList.toggle("error", error);
   clearTimeout(toast.timer); toast.timer = setTimeout(() => (t.hidden = true), ms);
 }
 async function busy(btn, label, fn) {
-  const old = btn.textContent; btn.disabled = true; btn.textContent = label;
-  try { return await fn(); } catch (e) { toast(e.message, 7000); }
-  finally { btn.disabled = false; btn.textContent = old; }
+  const old = btn.textContent; btn.disabled = true; btn.textContent = label; btn.classList.add("busy");
+  try { return await fn(); } catch (e) { toast(e.message, 7000, true); }
+  finally { btn.disabled = false; btn.textContent = old; btn.classList.remove("busy"); }
 }
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) =>
   ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -48,12 +48,22 @@ document.querySelectorAll("nav button").forEach((b) => b.onclick = () => {
   for (const t of ["offers", "profile", "config"]) $("#tab-" + t).hidden = t !== b.dataset.tab;
 });
 async function loadSettings() {
-  const s = await api("/api/settings");
+  const s = settings = await api("/api/settings");
   for (const [k, v] of Object.entries(s)) { const el = document.getElementById(k); if (el) el.value = v; }
   for (const k of s._secrets_set || []) { const el = document.getElementById(k); if (el) el.placeholder = "•••• déjà défini (laisser vide pour garder)"; }
   for (const k of s._from_env || []) { const el = document.getElementById(k); if (el) { el.disabled = true; el.title = "Défini par une variable d'environnement"; } }
   $("#logout").hidden = !s._auth;
+  renderGuide();
 }
+// Aide de démarrage : visible tant que le profil n'est pas rempli ou qu'aucune annonce n'existe.
+function renderGuide() {
+  const hasProfile = !!(settings.cv_master || settings.keywords);
+  $("#g-profile").classList.toggle("done", hasProfile);
+  $("#g-search").classList.toggle("done", offers.length > 0);
+  $("#g-score").classList.toggle("done", offers.some((o) => o.score != null));
+  $("#guide").hidden = hasProfile && offers.length > 0;
+}
+$("#g-go").onclick = () => document.querySelector('nav button[data-tab="profile"]').click();
 $("#btn-restore").onclick = () => $("#restore-file").click();
 $("#restore-file").onchange = async (e) => {
   const file = e.target.files[0]; e.target.value = "";
@@ -61,7 +71,7 @@ $("#restore-file").onchange = async (e) => {
   try {
     const r = await api("/api/import", JSON.parse(await file.text()));
     toast(`Sauvegarde restaurée : ${r.offers} annonce(s).`); await loadSettings(); await loadOffers();
-  } catch (er) { toast("Restauration impossible : " + er.message, 7000); }
+  } catch (er) { toast("Restauration impossible : " + er.message, 7000, true); }
 };
 document.querySelectorAll("button.save").forEach((b) => b.onclick = () => busy(b, "Enregistrement…", async () => {
   const body = {}; for (const k of b.dataset.keys.split(",")) { const el = document.getElementById(k); if (!el.disabled) body[k] = el.value.trim(); }
@@ -69,12 +79,20 @@ document.querySelectorAll("button.save").forEach((b) => b.onclick = () => busy(b
 }));
 
 // ---------- liste des annonces ----------
-async function loadOffers() { offers = await api("/api/offers"); renderList(); }
+async function loadOffers() { offers = await api("/api/offers"); renderList(); renderGuide(); }
 function renderList() {
   const f = $("#filter").value, ul = $("#offer-list"); ul.innerHTML = "";
   const shown = offers.filter((o) => f === "all" ? true
-    : f === "active" ? !["ecartee", "refus"].includes(o.status) : o.status === f);
-  if (!shown.length) ul.innerHTML = '<li style="display:block;cursor:default">Aucune annonce ici. Renseigne ton profil, puis clique sur « Chercher des annonces ».</li>';
+    : f === "active" ? !["ecartee", "refus"].includes(o.status) : o.status === f)
+    .map((o, i) => [o, i]).sort((a, b) => (b[0].score ?? -1) - (a[0].score ?? -1) || a[1] - b[1]).map((x) => x[0]);
+  for (const opt of $("#filter").options) {
+    const n = offers.filter((o) => opt.value === "all" ? true
+      : opt.value === "active" ? !["ecartee", "refus"].includes(o.status) : o.status === opt.value).length;
+    opt.textContent = opt.textContent.replace(/ \(\d+\)$/, "") + ` (${n})`;
+  }
+  if (!shown.length) ul.innerHTML = `<li style="display:block;cursor:default">${offers.length
+    ? "Aucune annonce dans ce filtre. Choisis « Toutes » pour tout voir."
+    : "Aucune annonce pour l'instant. Renseigne ton profil, puis clique sur « Chercher des annonces »."}</li>`;
   for (const o of shown) {
     const li = document.createElement("li");
     if (current && current.id === o.id) li.className = "sel";
@@ -85,7 +103,9 @@ function renderList() {
       <div class="m">${esc([o.company, o.location].filter(Boolean).join(" · "))}</div>
       <div><span class="tag">${esc(STATUS[o.status] || o.status)}</span><span class="tag">${esc(o.source)}</span>
       ${relance ? '<span class="tag alert">À relancer</span>' : ""}</div></div>`;
+    li.tabIndex = 0; li.setAttribute("role", "button");
     li.onclick = () => openOffer(o.id);
+    li.onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openOffer(o.id); } };
     ul.appendChild(li);
   }
 }
@@ -116,7 +136,7 @@ $("#btn-import").onclick = async (e) => {
   if (!files.length) return toast("Choisis d'abord un ou plusieurs CV.");
   if (files.length > 10) return toast("10 fichiers au maximum.");
   if (files.reduce((n, f) => n + f.size, 0) > 20e6) return toast("Fichiers trop lourds (20 Mo au total).");
-  const old = btn.textContent; btn.disabled = true;
+  const old = btn.textContent; btn.disabled = true; btn.classList.add("busy");
   const step = (t) => (btn.textContent = t);
   try {
     step("1/3 Lecture des CV et définition du profil…");
@@ -142,8 +162,8 @@ $("#btn-import").onclick = async (e) => {
     await loadOffers();
     toast(`${found} offre(s) trouvée(s), ${r.scored} notée(s).` + (r.left ? ` Il en reste ${r.left} à noter.` : ""), 9000);
     document.querySelector('nav button[data-tab="offers"]').click();
-  } catch (er) { toast(er.message, 9000); }
-  finally { btn.disabled = false; btn.textContent = old; }
+  } catch (er) { toast(er.message, 9000, true); }
+  finally { btn.disabled = false; btn.textContent = old; btn.classList.remove("busy"); }
 };
 $("#btn-manual").onclick = () => ($("#manual-box").hidden = !$("#manual-box").hidden);
 $("#manual-add").onclick = (e) => busy(e.target, "Analyse…", async () => {
@@ -270,6 +290,7 @@ $("#iv-next").onclick = (e) => {
     $("#iv-status").textContent = ""; $("#iv-feedback").innerHTML = md(r.feedback_md);
   });
 };
+document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("#interview").hidden) $("#iv-close").click(); });
 $("#iv-close").onclick = () => {
   stopListening(); if (window.speechSynthesis) speechSynthesis.cancel();
   $("#interview").hidden = true; if (current) openOffer(current.id);

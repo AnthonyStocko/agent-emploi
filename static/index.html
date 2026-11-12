@@ -16,15 +16,23 @@
     <form id="logout" method="post" action="/logout" hidden><button>Déconnexion</button></form>
   </nav>
 </header>
-<div id="toast" hidden></div>
+<div id="toast" hidden role="status" aria-live="polite"></div>
 
 <main>
 <section id="tab-offers">
+  <div id="guide" class="card guide" hidden>
+    <h2>Pour démarrer</h2>
+    <ol>
+      <li id="g-profile">Renseigne ton profil : importe tes CV ou colle ton CV maître. <button id="g-go" class="primary">Aller au profil</button></li>
+      <li id="g-search">Clique sur « Chercher des annonces » (pense à ajouter une source dans Réglages).</li>
+      <li id="g-score">Clique sur « Noter les nouvelles » pour classer les offres selon ton profil.</li>
+    </ol>
+  </div>
   <div class="toolbar">
     <button id="btn-collect" class="primary">Chercher des annonces</button>
     <button id="btn-score">Noter les nouvelles</button>
     <button id="btn-manual">Coller une annonce</button>
-    <select id="filter">
+    <select id="filter" aria-label="Filtrer les annonces">
       <option value="active">En cours</option>
       <option value="all">Toutes</option>
       <option value="nouvelle">Nouvelles</option>
@@ -34,6 +42,7 @@
       <option value="ecartee">Écartées</option>
     </select>
   </div>
+  <p class="hint">Les annonces sont classées par note. Le cercle indique la compatibilité avec ton profil : vert à partir de 80, orange à partir de 50, rouge en dessous, « ? » si pas encore notée.</p>
   <div id="manual-box" class="card" hidden>
     <textarea id="manual-text" rows="6" placeholder="Colle ici le texte de l'annonce, ou seulement son lien"></textarea>
     <button id="manual-add" class="primary">Ajouter</button>
@@ -104,7 +113,7 @@
     <p id="iv-progress" class="hint"></p>
     <p id="iv-question"></p>
     <textarea id="iv-answer" rows="7" placeholder="Ta réponse apparaît ici pendant que tu parles. Tu peux aussi la taper ou la corriger."></textarea>
-    <p id="iv-status" class="hint"></p>
+    <p id="iv-status" class="hint" aria-live="polite"></p>
     <div class="toolbar">
       <button id="iv-mic">🎙 Parler</button>
       <button id="iv-repeat">Répéter la question</button>
