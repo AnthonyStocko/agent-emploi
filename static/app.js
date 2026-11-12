@@ -46,6 +46,7 @@ function daysSince(iso) { return iso ? Math.floor((Date.now() - new Date(iso).ge
 document.querySelectorAll("nav button").forEach((b) => b.onclick = () => {
   document.querySelectorAll("nav button").forEach((x) => x.classList.toggle("active", x === b));
   for (const t of ["offers", "profile", "config"]) $("#tab-" + t).hidden = t !== b.dataset.tab;
+  history.replaceState(null, "", "#" + b.dataset.tab);
 });
 async function loadSettings() {
   const s = settings = await api("/api/settings");
@@ -82,15 +83,19 @@ document.querySelectorAll("button.save").forEach((b) => b.onclick = () => busy(b
 async function loadOffers() { offers = await api("/api/offers"); renderList(); renderGuide(); }
 function renderList() {
   const f = $("#filter").value, ul = $("#offer-list"); ul.innerHTML = "";
+  const q = $("#search").value.trim().toLowerCase();
   const shown = offers.filter((o) => f === "all" ? true
     : f === "active" ? !["ecartee", "refus"].includes(o.status) : o.status === f)
+    .filter((o) => !q || [o.title, o.company, o.location].join(" ").toLowerCase().includes(q))
     .map((o, i) => [o, i]).sort((a, b) => (b[0].score ?? -1) - (a[0].score ?? -1) || a[1] - b[1]).map((x) => x[0]);
   for (const opt of $("#filter").options) {
     const n = offers.filter((o) => opt.value === "all" ? true
       : opt.value === "active" ? !["ecartee", "refus"].includes(o.status) : o.status === opt.value).length;
     opt.textContent = opt.textContent.replace(/ \(\d+\)$/, "") + ` (${n})`;
   }
-  if (!shown.length) ul.innerHTML = `<li style="display:block;cursor:default">${offers.length
+  if (!shown.length) ul.innerHTML = `<li style="display:block;cursor:default">${q
+    ? "Aucune annonce ne correspond à ta recherche."
+    : offers.length
     ? "Aucune annonce dans ce filtre. Choisis « Toutes » pour tout voir."
     : "Aucune annonce pour l'instant. Renseigne ton profil, puis clique sur « Chercher des annonces »."}</li>`;
   for (const o of shown) {
@@ -110,6 +115,7 @@ function renderList() {
   }
 }
 $("#filter").onchange = renderList;
+$("#search").oninput = renderList;
 $("#btn-collect").onclick = (e) => busy(e.target, "Recherche en cours…", async () => {
   const r = await api("/api/collect", {});
   toast(Object.entries(r).map(([k, v]) => `${SOURCE_NAMES[k]} : ${v.error ? v.error : v.new + " nouvelle(s)"}`).join(" — "), 9000);
@@ -210,7 +216,7 @@ function renderDetail() {
     ${(o.interviews || []).map((i) => `<h2>Retour du coach — ${esc(i.created_at)}</h2><div class="doc md">${md(i.feedback_md)}</div>`).join("")}`;
   const upd = (body) => api(`/api/offers/${o.id}/update`, body);
   $("#d-status").onchange = async (e) => { await upd({ status: e.target.value }); await loadOffers(); openOffer(o.id); };
-  $("#d-notes").onchange = (e) => upd({ notes: e.target.value }).catch((er) => toast(er.message));
+  $("#d-notes").onchange = (e) => upd({ notes: e.target.value }).then(() => toast("Notes enregistrées.", 2000)).catch((er) => toast(er.message));
   $("#d-gen").onclick = (e) => busy(e.target, "Rédaction (1 à 2 min)…", async () => { await api(`/api/offers/${o.id}/generate`, {}); await openOffer(o.id); });
   $("#d-prep").onclick = (e) => busy(e.target, "Préparation…", async () => { await api(`/api/offers/${o.id}/prep`, {}); await openOffer(o.id); });
   $("#d-iv").onclick = (e) => busy(e.target, "Préparation des questions…", () => startInterview(o));
@@ -296,4 +302,5 @@ $("#iv-close").onclick = () => {
   $("#interview").hidden = true; if (current) openOffer(current.id);
 };
 
+{ const b = document.querySelector(`nav button[data-tab="${location.hash.slice(1)}"]`); if (b) b.click(); }
 loadSettings().then(loadOffers).catch((e) => toast(e.message));
