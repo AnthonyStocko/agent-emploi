@@ -22,6 +22,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import agent
 import cvimport
 import db
+import hub
 import llm
 import sources
 
@@ -74,6 +75,19 @@ def api_get(path):
         for k in db.SECRET_KEYS:  # les secrets ne repartent jamais vers le navigateur
             values.pop(k, None)
         return values
+    if path == "/api/summary":
+        cols = "id, title, company, location, score, status, url, applied_at"
+        week_ago = (datetime.date.today() - datetime.timedelta(days=7)).isoformat()
+        return {
+            "total": db.query("SELECT COUNT(*) AS n FROM offers WHERE status NOT IN ('ecartee', 'refus')")[0]["n"],
+            "unscored": db.query("SELECT COUNT(*) AS n FROM offers WHERE score IS NULL")[0]["n"],
+            "by_status": {r["status"]: r["n"] for r in
+                          db.query("SELECT status, COUNT(*) AS n FROM offers GROUP BY status")},
+            "top": db.query(f"SELECT {cols} FROM offers WHERE score >= 60 AND status IN "
+                            "('nouvelle', 'a_postuler') ORDER BY score DESC, id DESC LIMIT 10"),
+            "relances": db.query(f"SELECT {cols} FROM offers WHERE status = 'postulee' "
+                                 "AND applied_at <= ? ORDER BY applied_at", (week_ago,)),
+        }
     if path == "/api/export":
         return {"settings": {r["key"]: json.loads(r["value"]) for r in
                              db.query("SELECT key, value FROM settings")},
@@ -116,7 +130,10 @@ def api_post(path, body):
         return {"scored": scored, "left": left}
     if path == "/api/profile/import":
         files = body.get("files")
-        return cvimport.build_profile(s, files if isinstance(files, list) else [])
+        result = cvimport.build_profile(s, files if isinstance(files, list) else [])
+        hub.send_event("profil", f"Profil déduit de ses CV : {result.get('resume')}\n"
+                                 f"Postes recherchés : {result.get('keywords')}")
+        return result
     if path == "/api/offers/manual":
         o = sources.manual(body.get("text"))
         return {"new": db.add_offer(o)}
@@ -136,11 +153,24 @@ def api_post(path, body):
                     applied = datetime.date.today().isoformat()
                 db.execute("UPDATE offers SET status=?, applied_at=? WHERE id=?",
                            (body["status"], applied, o["id"]))
+                if body["status"] in ("ecartee", "a_postuler", "postulee") and body["status"] != o["status"]:
+                    label = {"ecartee": "a ÉCARTÉ", "a_postuler": "a RETENU (à postuler)",
+                             "postulee": "a POSTULÉ à"}[body["status"]]
+                    hub.send_event("decision_offre", (
+                        f"Le candidat {label} cette offre.\nPoste : {o['title']}\nEntreprise : {o['company']}\n"
+                        f"Lieu : {o['location']}\nContrat : {o['contract']}\nSalaire : {o['salary']}\n"
+                        f"Score donné par l'agent : {o['score']} ({o['score_reason']})\n"
+                        f"Notes du candidat : {o['notes']}\nExtrait : {(o['description'] or '')[:700]}"))
             if "notes" in body:
                 db.execute("UPDATE offers SET notes=? WHERE id=?", (str(body["notes"]), o["id"]))
             for col in ("cv_md", "letter_md"):
                 if col in body:
                     db.execute(f"UPDATE offers SET {col}=? WHERE id=?", (str(body[col]), o["id"]))
+                    if o[col] and str(body[col]).strip() != o[col].strip():
+                        kind = "CV" if col == "cv_md" else "lettre de motivation"
+                        hub.send_event("correction_texte", (
+                            f"Le candidat a corrigé à la main un texte ({kind}) rédigé par l'agent.\n\n"
+                            f"AVANT :\n{o[col][:3500]}\n\nAPRÈS :\n{str(body[col])[:3500]}"))
             return {"ok": True}
         if action == "generate":
             return agent.generate_application(s, o)
@@ -222,6 +252,32 @@ button{{background:#2457d6;color:#fff;border-color:#2457d6;cursor:pointer}}.err{
 <button>Se connecter</button></form></body></html>""".encode("utf-8")
 
 
+HUB_ERRORS = {
+    "non_configure": "Jeton refusé : HUB_TOKEN n'est pas configuré chez l'agent emploi "
+                     "(variable d'environnement absente ou vide).",
+    "different": "Jeton refusé : le jeton envoyé est différent de HUB_TOKEN chez l'agent emploi "
+                 "(vérifie la valeur, sans espace ni retour à la ligne).",
+    "vide": "Jeton refusé : l'en-tête Authorization est présent mais le jeton est vide "
+            "(format attendu : « Authorization: Bearer <HUB_TOKEN> »).",
+}
+
+
+def hub_auth(header):
+    """Contrôle le jeton de l'agent chef. Renvoie "ok", "absent" (pas d'en-tête Bearer : on passe à la
+    connexion normale), "non_configure", "vide" ou "different"."""
+    header = (header or "").strip()
+    scheme, _, given = header.partition(" ")
+    if scheme.lower() != "bearer":
+        return "absent"
+    token = (os.getenv("HUB_TOKEN") or "").strip()  # un retour à la ligne collé avec la valeur est ignoré
+    given = given.strip()
+    if not token:
+        return "non_configure"
+    if not given:
+        return "vide"
+    return "ok" if secrets.compare_digest(given.encode(), token.encode()) else "different"
+
+
 class Handler(BaseHTTPRequestHandler):
     def _send(self, code, payload, ctype="application/json; charset=utf-8", headers=()):
         data = payload if isinstance(payload, bytes) else json.dumps(
@@ -262,6 +318,14 @@ class Handler(BaseHTTPRequestHandler):
         if origin and urllib.parse.urlsplit(origin).netloc != host:
             self._send(403, {"error": "Origine refusée."})
             return False
+        # L'agent chef s'identifie avec le jeton partagé HUB_TOKEN (routes /api/ uniquement)
+        if path.startswith("/api/"):
+            verdict = hub_auth(self.headers.get("Authorization"))
+            if verdict == "ok":
+                return True
+            if verdict != "absent":  # un jeton a été présenté : on dit pourquoi il est refusé
+                self._send(401, {"error": HUB_ERRORS[verdict]})
+                return False
         if not os.getenv("APP_PASSWORD"):
             if os.getenv("RENDER"):
                 self._send(503, {"error": "APP_PASSWORD n'est pas défini dans les variables "
