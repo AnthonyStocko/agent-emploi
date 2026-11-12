@@ -93,7 +93,7 @@ function renderList() {
       : opt.value === "active" ? !["ecartee", "refus"].includes(o.status) : o.status === opt.value).length;
     opt.textContent = opt.textContent.replace(/ \(\d+\)$/, "") + ` (${n})`;
   }
-  if (!shown.length) ul.innerHTML = `<li style="display:block;cursor:default">${q
+  if (!shown.length) ul.innerHTML = `<li style="display:block;cursor:default"><div class="empty-ill" aria-hidden="true">${offers.length ? "🔎" : "📭"}</div>${q
     ? "Aucune annonce ne correspond à ta recherche."
     : offers.length
     ? "Aucune annonce dans ce filtre. Choisis « Toutes » pour tout voir."
