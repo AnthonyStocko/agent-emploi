@@ -2,6 +2,7 @@
 import json
 
 import db
+import hub
 import llm
 
 RULES = ("Règle absolue : n'invente aucune expérience, compétence, diplôme, chiffre ou date. "
@@ -9,13 +10,19 @@ RULES = ("Règle absolue : n'invente aucune expérience, compétence, diplôme, 
          "Si une exigence de l'annonce n'est pas couverte par le profil, ne la revendique pas.")
 
 
-def _profile(s):
+def _profile(s, *memory_categories):
     cv = (s.get("cv_master") or "").strip()
     if not cv:
         raise llm.LLMError("Renseigne d'abord ton CV maître dans l'onglet Profil.")
-    return (f"CV MAÎTRE DU CANDIDAT :\n{cv}\n\nCRITÈRES DE RECHERCHE :\n"
+    text = (f"CV MAÎTRE DU CANDIDAT :\n{cv}\n\nCRITÈRES DE RECHERCHE :\n"
             f"Postes visés : {s.get('keywords', '')}\nLieu : {s.get('location', '')}\n"
             f"Autres critères : {s.get('criteria', '')}")
+    # Mémoire commune tenue par l'agent chef : ce que le candidat a montré ou dit au fil du temps
+    remembered = hub.memory_text(*memory_categories) if memory_categories else ""
+    if remembered:
+        text += ("\n\nCE QUE L'ON A APPRIS DU CANDIDAT AU FIL DU TEMPS (à prendre en compte ; "
+                 f"le CV maître reste la seule source de faits pour le CV et la lettre) :\n{remembered}")
+    return text
 
 
 def _offer_text(o, limit=6000):
@@ -26,7 +33,7 @@ def _offer_text(o, limit=6000):
 def score_pending(s, batch=8, max_batches=5):
     """Note de 0 à 100 les annonces non évaluées, les plus récentes d'abord (40 par appel
     au maximum, pour ménager le quota de l'abonnement). Renvoie (notées, restantes)."""
-    profile = _profile(s)
+    profile = _profile(s, "gouts_offres", "profil")
     pending = db.query("SELECT * FROM offers WHERE score IS NULL ORDER BY id DESC "
                        "LIMIT ?", (batch * max_batches,))
     done = 0
@@ -54,7 +61,7 @@ def score_pending(s, batch=8, max_batches=5):
 
 def generate_application(s, o):
     text = llm.ask(
-        f"{_profile(s)}\n\nANNONCE :\n{_offer_text(o)}\n\n"
+        f"{_profile(s, 'style_ecriture', 'recits', 'profil')}\n\nANNONCE :\n{_offer_text(o)}\n\n"
         "Rédige en français, en Markdown :\n"
         "1. Un CV adapté à cette annonce (une page) : titre aligné sur le poste, accroche de "
         "2-3 lignes, expériences les plus pertinentes en premier avec des réalisations concrètes, "
@@ -73,7 +80,7 @@ def generate_application(s, o):
 
 def generate_prep(s, o):
     text = llm.ask(
-        f"{_profile(s)}\n\nANNONCE :\n{_offer_text(o)}\n\n"
+        f"{_profile(s, 'points_a_travailler', 'recits')}\n\nANNONCE :\n{_offer_text(o)}\n\n"
         "Prépare une fiche d'entretien en Markdown, en français, avec ces sections :\n"
         "## Ce que le recruteur cherche vraiment\n## Tes 3 meilleurs arguments\n"
         "## Tes points faibles et comment y répondre\n"
@@ -87,7 +94,7 @@ def generate_prep(s, o):
 
 def start_interview(s, o, n=6):
     qs = llm.ask_json(
-        f"{_profile(s)}\n\nANNONCE :\n{_offer_text(o)}\n\n"
+        f"{_profile(s, 'points_a_travailler')}\n\nANNONCE :\n{_offer_text(o)}\n\n"
         f"Tu es le recruteur pour ce poste. Prépare {n} questions d'entretien à poser à l'oral, "
         "dans l'ordre : présentation, motivation pour ce poste, deux questions techniques ou "
         "métier précises liées à l'annonce, une mise en situation comportementale, puis une "
@@ -108,7 +115,7 @@ def interview_feedback(s, interview, o, answers):
         f"{(answers[i] if i < len(answers) else '').strip() or '(pas de réponse)'}"
         for i, q in enumerate(qs))
     text = llm.ask(
-        f"{_profile(s)}\n\nANNONCE :\n{_offer_text(o, 3000)}\n\nENTRETIEN SIMULÉ :\n{transcript}\n\n"
+        f"{_profile(s, 'points_a_travailler')}\n\nANNONCE :\n{_offer_text(o, 3000)}\n\nENTRETIEN SIMULÉ :\n{transcript}\n\n"
         "Tu es un coach d'entretien exigeant et bienveillant. Les réponses sont des "
         "transcriptions vocales : ignore les fautes de transcription. En Markdown, en français, "
         "tutoie le candidat :\n## Note globale sur 10 et impression générale\n"
@@ -118,4 +125,6 @@ def interview_feedback(s, interview, o, answers):
         "Sois franc : ne complimente pas une réponse faible.")
     db.execute("UPDATE interviews SET answers=?, feedback_md=? WHERE id=?",
                (json.dumps(answers, ensure_ascii=False), text, interview["id"]))
+    hub.send_event("entretien", f"Entretien simulé pour le poste « {o['title']} » chez "
+                   f"{o['company'] or '?'}.\n\n{transcript[:4500]}\n\nRETOUR DU COACH :\n{text[:2500]}")
     return {"feedback_md": text}

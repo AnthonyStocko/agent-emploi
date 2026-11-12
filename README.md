@@ -63,6 +63,19 @@ Réglages, puis « Restaurer une sauvegarde ».
 Claude Code tourne sans aucun outil, dans un dossier vide, et ne voit que le jeton
 d'abonnement : ni le mot de passe de l'appli ni tes identifiants mail.
 
+## Lien avec l'agent chef (facultatif)
+
+Avec les variables `HUB_URL` (adresse de l'agent chef) et `HUB_TOKEN` (secret partagé), l'agent
+emploi relit la mémoire commune avant de noter, rédiger ou préparer un entretien, et signale à
+l'agent chef tes décisions (offre écartée, retenue, postulée), tes corrections de textes et tes
+entretiens simulés. Sans ces variables, ou si l'agent chef est injoignable, rien ne change.
+
+L'agent chef appelle les routes `/api/` de l'agent emploi avec l'en-tête
+`Authorization: Bearer <HUB_TOKEN>` (la valeur doit être identique des deux côtés ; espaces et
+retours à la ligne autour du jeton sont ignorés). En cas de refus, la réponse 401 précise la cause :
+`HUB_TOKEN` non configuré chez l'agent emploi, jeton différent, ou jeton vide. Sans en-tête
+`Authorization: Bearer`, c'est la connexion par mot de passe habituelle qui s'applique.
+
 ## À savoir
 
 - Chaque appel à Claude prend de 10 secondes à 2 minutes et consomme ton quota d'abonnement.
@@ -75,6 +88,6 @@ d'abonnement : ni le mot de passe de l'appli ni tes identifiants mail.
 
 ## Fichiers
 
-- `app.py` : serveur et routes — `agent.py` : prompts (tri, rédaction, coaching)
+- `app.py` : serveur et routes — `hub.py` : lien avec l'agent chef — `agent.py` : prompts (tri, rédaction, coaching)
 - `cvimport.py` : import des CV et profil automatique — `sources.py` : collecte — `llm.py` : appel à Claude Code — `db.py` : base SQLite
 - `static/` : interface

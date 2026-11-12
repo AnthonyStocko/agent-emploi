@@ -12,6 +12,10 @@ services:
         sync: false
       - key: CLAUDE_CODE_OAUTH_TOKEN # jeton d'abonnement : `claude setup-token` sur ton PC
         sync: false
+      - key: HUB_URL                 # facultatif : adresse de l'agent chef
+        sync: false
+      - key: HUB_TOKEN               # facultatif : même valeur que chez l'agent chef
+        sync: false
     # Pour garder la base entre deux déploiements (offre payante) : décommente et ajoute
     # la variable DATA_DIR=/data
     # disk:
