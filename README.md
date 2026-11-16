@@ -1,7 +1,50 @@
 # Agent emploi
 
-Appli web locale qui cherche des annonces, les note selon ton profil, rédige un CV et une
-lettre adaptés, suit tes candidatures et te fait passer des entretiens simulés à la voix.
+## Mission
+
+T'aider dans ta recherche d'emploi : chercher des annonces, les noter selon ton profil, rédiger un CV
+et une lettre adaptés à chacune, suivre tes candidatures et te faire passer des entretiens simulés à la voix.
+
+## Ce qu'il fait
+
+| Domaine | Ce qu'il fait |
+|---|---|
+| Profil | Importe tes CV (PDF, DOCX, ODT, TXT), les fusionne en CV maître, en déduit les postes à viser et le lieu |
+| Annonces | Collecte sur France Travail, Adzuna, dans tes alertes mail et à partir d'une annonce collée ; note chaque annonce selon ton profil |
+| Candidature | Rédige un CV et une lettre adaptés à l'annonce, que tu relis et envoies toi-même |
+| Suivi | Garde le statut de chaque annonce (écartée, retenue, postulée) et signale celles à relancer |
+| Entretien | Prépare une fiche d'entretien, pose les questions à voix haute, puis rend un retour détaillé |
+
+Tout ce qu'il écrit reste dans sa propre base (`data.sqlite3`).
+
+## Ce qu'il ne fait jamais
+
+- **Postuler à ta place.** Il n'envoie aucune candidature et ne contacte aucun recruteur : le statut
+  « Postulée » est une étiquette que tu poses toi-même.
+- **Inventer.** Aucune expérience, compétence, diplôme, chiffre ou date qui ne soit pas dans ton CV
+  maître. Relis quand même toujours CV et lettre avant envoi.
+- **Écrire dans ta boîte mail.** Il la lit en lecture seule, et seulement les mails des expéditeurs
+  d'alertes que tu as listés (`IMAP_SENDERS`). Le reste de la boîte est le domaine d'agent-perso, qui
+  laisse ces alertes de côté (sa variable `JOB_ALERT_SENDERS` doit contenir la même liste).
+- **Donner des outils ou des secrets à Claude.** Claude Code tourne sans aucun outil, dans un dossier
+  vide, et ne voit que le jeton d'abonnement : ni le mot de passe de l'appli ni tes identifiants mail.
+- **Sortir de son domaine.** Les mails, l'agenda et les tâches sont le rôle d'agent-perso, la
+  modification du code celui d'agent-dev.
+
+Les règles qui s'imposent à toute modification du code sont dans [CLAUDE.md](CLAUDE.md).
+
+## Qui l'appelle
+
+- **Toi**, depuis sa page web (connexion par `APP_USERNAME` / `APP_PASSWORD`).
+- **L'agent chef** ([agent-manager](https://github.com/AnthonyStocko/agent-manager)), qui appelle ses
+  routes `/api/` avec `HUB_TOKEN` : dans la discussion, et chaque matin en semaine pour chercher et
+  noter les offres. En retour, l'agent emploi lit la mémoire commune de l'agent chef et lui signale tes
+  décisions (voir « Lien avec l'agent chef »).
+
+L'agent développeur ([agent-dev](https://github.com/AnthonyStocko/agent-dev)) modifie ce dépôt et
+fusionne dans `main` sans relecture si toutes les vérifications passent.
+
+Il tourne sur Render (voir « Déploiement sur Render ») et peut aussi être lancé en local.
 
 ## Prérequis
 
@@ -85,6 +128,12 @@ retours à la ligne autour du jeton sont ignorés). En cas de refus, la réponse
 - En local, le serveur n'écoute que sur 127.0.0.1. Sur Render, tout passe par la page de connexion.
 - L'agent a pour consigne de ne rien inventer, mais relis toujours CV et lettre avant envoi.
 - Statut « Postulée » : l'étiquette « À relancer » apparaît au bout de 7 jours.
+
+## Tests
+
+    python -m unittest discover -p 'test_*.py'
+
+Seule l'authentification du lien avec l'agent chef est testée aujourd'hui (`test_hub_auth.py`).
 
 ## Fichiers
 
