@@ -90,7 +90,7 @@ avec un jeton d'abonnement.
 1. Sur ton PC : `claude setup-token`, puis copie le jeton (`sk-ant-oat01-…`).
 2. Sur Render : New > Blueprint, choisis ce dépôt (le fichier `render.yaml` crée le service).
 3. Renseigne les variables demandées :
-   - `APP_PASSWORD` : le mot de passe de l'appli (obligatoire, l'appli refuse de démarrer sans).
+   - `APP_PASSWORD` : le mot de passe de l'appli (obligatoire : sans lui, l'appli refuse toute demande).
    - `CLAUDE_CODE_OAUTH_TOKEN` : le jeton de l'étape 1.
    - `APP_USERNAME` : identifiant de connexion (`admin` par défaut).
 4. Facultatif, pour ne pas ressaisir les sources après chaque déploiement : `FT_CLIENT_ID`,
