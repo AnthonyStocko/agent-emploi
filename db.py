@@ -33,7 +33,19 @@ CREATE TABLE IF NOT EXISTS interviews (
   created_at TEXT DEFAULT (datetime('now'))
 );
 CREATE TABLE IF NOT EXISTS seen_mails (msg_id TEXT PRIMARY KEY);
+CREATE TABLE IF NOT EXISTS cycles (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  report TEXT, report_md TEXT,
+  created_at TEXT DEFAULT (datetime('now'))
+);
+CREATE TABLE IF NOT EXISTS questions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  text TEXT, options TEXT, answer TEXT, answered_at TEXT,
+  asked_at TEXT DEFAULT (datetime('now'))
+);
 """
+# Colonnes ajoutées après coup : créées au démarrage si la base est plus ancienne
+OFFER_COLUMNS = {"selected_at": "TEXT", "selection_md": "TEXT"}
 
 
 def connect():
@@ -45,6 +57,10 @@ def connect():
 def init():
     with connect() as con:
         con.executescript(SCHEMA)
+        have = {r[1] for r in con.execute("PRAGMA table_info(offers)")}
+        for col, kind in OFFER_COLUMNS.items():
+            if col not in have:
+                con.execute(f"ALTER TABLE offers ADD COLUMN {col} {kind}")
 
 
 def query(sql, params=()):
