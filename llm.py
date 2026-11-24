@@ -29,7 +29,12 @@ class LLMError(Exception):
     pass
 
 
-def _command():
+# Modèle économique (notation, sélection des questions) ; le modèle principal (CLAUDE_CLI_MODEL, sinon
+# celui de Claude Code) rédige les CV et les lettres.
+ECO_MODEL = os.getenv("CLAUDE_CLI_MODEL_ECO", "haiku")
+
+
+def _command(model=None):
     exe = shutil.which("claude")
     if not exe:
         raise LLMError("Claude Code est introuvable. En local : installe-le et lance `claude` une "
@@ -42,13 +47,14 @@ def _command():
         raise LLMError("CLAUDE_CODE_OAUTH_TOKEN contient une clé API (sk-ant-api…), facturée au "
                        "crédit. Mets le jeton d'abonnement (sk-ant-oat01-…) de `claude setup-token`.")
     command = [exe, "-p", "--tools", "", "--strict-mcp-config", "--output-format", "json"]
-    if os.getenv("CLAUDE_CLI_MODEL"):
-        command += ["--model", os.getenv("CLAUDE_CLI_MODEL")]
+    model = model or os.getenv("CLAUDE_CLI_MODEL")
+    if model:
+        command += ["--model", model]
     return command
 
 
-def ask(prompt, timeout=None):
-    command = _command()
+def ask(prompt, timeout=None, model=None):
+    command = _command(model)
     env = {k: os.environ[k] for k in CLI_ENV_ALLOWLIST if k in os.environ}
     workdir = tempfile.mkdtemp(prefix="agent-emploi-")  # dossier vide : rien à lire
     try:

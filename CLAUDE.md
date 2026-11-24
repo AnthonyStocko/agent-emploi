@@ -7,6 +7,9 @@ Règles non négociables :
   message à un recruteur, aucun formulaire soumis sur un site d'offres.
 - Les prompts de rédaction gardent la règle « n'invente aucune expérience, compétence, diplôme, chiffre
   ou date » (`RULES` dans `agent.py`, et l'import des CV dans `cvimport.py`).
+- Le passage tous les 2 jours (`cycle.py`) respecte la consigne `MISSION` d'`agent.py` : au plus 2 offres
+  retenues (notées 80 ou plus), une seule passe de notation de 24 annonces au plus, jamais de rédaction
+  pour une offre non retenue, au plus 2 questions fermées par jour.
 - La boîte mail est en lecture seule (`readonly=True`) et limitée aux expéditeurs d'alertes listés
   (`IMAP_SENDERS`) : aucun envoi, aucun déplacement, aucune suppression, aucun mail marqué comme lu.
 - Claude Code reste sans outil (`--tools ""`, `--strict-mcp-config`), dans un dossier vide, avec le seul

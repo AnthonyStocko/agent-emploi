@@ -56,3 +56,5 @@ h1 { display:flex; align-items:center; gap:8px; }
 .logo { display:inline-grid; place-items:center; width:32px; height:32px; border-radius:9px; background:linear-gradient(135deg, var(--accent), #6f4cd6); font-size:18px; }
 .empty-ill { font-size:44px; text-align:center; line-height:1.2; margin-bottom:6px; }
 .guide { background:linear-gradient(135deg, var(--card), var(--bg)); }
+.cycle { margin-bottom:16px; } .cycle summary { cursor:pointer; color:var(--mute); margin:8px 0; }
+.question { border:1px solid var(--line); border-radius:8px; padding:8px 12px; margin:8px 0; } .question p { margin:0; }

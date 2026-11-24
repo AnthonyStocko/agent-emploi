@@ -201,3 +201,18 @@ def manual(text):
 
 
 COLLECTORS = {"france_travail": france_travail, "adzuna": adzuna, "mail": mail_alerts}
+
+
+def collect_all(s, names=None):
+    """Collecte sur les sources demandées (toutes par défaut) ; renvoie {source: {found, new} ou {error}}."""
+    report = {}
+    for name in names or list(COLLECTORS):
+        fn = COLLECTORS.get(name)
+        if not fn:
+            continue
+        try:
+            found = fn(s)
+            report[name] = {"found": len(found), "new": sum(db.add_offer(o) for o in found)}
+        except (SourceError, llm.LLMError, ValueError, KeyError) as e:
+            report[name] = {"error": str(e)}
+    return report

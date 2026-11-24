@@ -127,6 +127,34 @@ $("#btn-score").onclick = (e) => busy(e.target, "Notation en cours…", async ()
   await loadOffers();
 });
 
+// ---------- sélection de l'agent (cycle tous les 2 jours) et questions fermées ----------
+async function loadCycle() {
+  const r = await api("/api/cycle");
+  const open = r.questions.filter((q) => q.answer == null), box = $("#cycle-questions");
+  box.innerHTML = open.length ? "<h3>❓ Questions de l'agent</h3>" : "";
+  for (const q of open) {
+    const div = document.createElement("div"); div.className = "question";
+    div.innerHTML = `<p>${esc(q.text)}</p>`;
+    const bar = document.createElement("div"); bar.className = "toolbar";
+    for (const opt of q.options) {
+      const b = document.createElement("button"); b.textContent = opt;
+      b.onclick = () => busy(b, "…", async () => { await api(`/api/questions/${q.id}/answer`, { answer: opt }); toast("Réponse enregistrée."); await loadCycle(); });
+      bar.appendChild(b);
+    }
+    div.appendChild(bar); box.appendChild(div);
+  }
+  if (r.last) {
+    $("#cycle-title").textContent = `Dernier passage : ${r.last.created_at.slice(0, 16).replace("T", " ")} (UTC)`;
+    $("#cycle-report").innerHTML = md(r.last.report_md);
+    $("#cycle-last").open = (r.last.report.selected || []).length > 0;
+  }
+}
+$("#btn-cycle").onclick = (e) => busy(e.target, "Passage en cours (plusieurs minutes)…", async () => {
+  const r = await api("/api/cycle", { force: true });
+  toast(r.status === "en_cours" ? "Un passage est déjà en cours." : "Passage terminé.", 7000);
+  await loadCycle(); await loadOffers();
+});
+
 // ---------- import de CV : profil automatique, puis recherche et notation ----------
 const SOURCE_NAMES = { france_travail: "France Travail", adzuna: "Adzuna", mail: "Alertes mail" };
 function fileToBase64(file) {
@@ -303,4 +331,4 @@ $("#iv-close").onclick = () => {
 };
 
 { const b = document.querySelector(`nav button[data-tab="${location.hash.slice(1)}"]`); if (b) b.click(); }
-loadSettings().then(loadOffers).catch((e) => toast(e.message));
+loadSettings().then(loadOffers).then(loadCycle).catch((e) => toast(e.message));

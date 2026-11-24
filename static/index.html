@@ -29,6 +29,13 @@
       <li id="g-score">Clique sur « Noter les nouvelles » pour classer les offres selon ton profil.</li>
     </ol>
   </div>
+  <div id="cycle-card" class="card cycle">
+    <h2>🎯 Sélection de l'agent</h2>
+    <p class="hint">Tous les 2 jours, l'agent choisit seul 1 ou 2 offres notées 80 ou plus, avec un CV et une lettre prêts à relire. Il n'envoie rien : tu relis et tu postules toi-même.</p>
+    <div id="cycle-questions"></div>
+    <details id="cycle-last"><summary id="cycle-title">Aucun passage pour l'instant</summary><div id="cycle-report" class="md"></div></details>
+    <div class="toolbar"><button id="btn-cycle">▶️ Lancer un passage maintenant</button></div>
+  </div>
   <div class="toolbar">
     <button id="btn-collect" class="primary">🔍 Chercher des annonces</button>
     <button id="btn-score">⭐ Noter les nouvelles</button>
@@ -73,7 +80,11 @@
     <label>Numéro de département (France Travail) <input id="departement" placeholder="ex. 69"></label>
     <label>Autres critères, en clair
       <textarea id="criteria" rows="4" placeholder="ex. CDI, 45 k€ minimum, 2 jours de télétravail, pas d'ESN"></textarea></label>
-    <button class="primary save" data-keys="cv_master,keywords,location,departement,criteria">Enregistrer</button>
+    <h2>🧹 Préfiltre (sans modèle, avant la notation)</h2>
+    <label>Zone acceptée : communes ou numéros de département, séparés par des virgules (vide = partout) <input id="zone" placeholder="ex. 69, 01, Lyon, Villeurbanne"></label>
+    <label>Types de contrat acceptés (vide = tous) <input id="contracts" placeholder="ex. CDI, CDD"></label>
+    <label>Mots qui excluent une annonce <input id="exclude_words" placeholder="ex. ESN, astreinte, commercial"></label>
+    <button class="primary save" data-keys="cv_master,keywords,location,departement,criteria,zone,contracts,exclude_words">Enregistrer</button>
   </div>
 </section>
 
