@@ -119,7 +119,9 @@ class PrefiltreTest(Base):
         seen = []
         with mock.patch.object(llm, "ask_json", lambda p, **k: seen.append(p) or []):
             cycle.score({**S, "zone": "", "departement": "69"}, [db.query("SELECT id FROM offers")[0]["id"]])
-        self.assertIn("Zone géographique acceptée : 69.", seen[0])
+        self.assertIn("Zone géographique acceptée : le département 69.", seen[0])
+        self.assertEqual(cycle.zone_text({"departement": "42", "location": "Planfoy"}),
+                         "le département 42 ou un rayon d'environ 30 km autour de Planfoy")
 
 
 def fake_llm(calls, score=90, questions=None):

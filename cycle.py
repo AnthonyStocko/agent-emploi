@@ -89,8 +89,15 @@ def zones_of(s):
 
 
 def zone_text(s):
-    zones = zones_of(s)
-    return ", ".join(zones) if zones else "(aucune zone réglée)"
+    """La zone en clair pour la notation (le modèle ne doit pas écarter Saint-Étienne pour « Planfoy »)."""
+    if _terms(s.get("zone")):
+        return ", ".join(_terms(s.get("zone")))
+    parts = []
+    if (s.get("departement") or "").strip():
+        parts.append(f"le département {s['departement'].strip()}")
+    if (s.get("location") or "").strip():
+        parts.append(f"un rayon d'environ {sources.rayon_km(s)} km autour de {s['location'].strip()}")
+    return " ou ".join(parts) if parts else "(aucune zone réglée)"
 
 
 def prefilter_reason(o, s, seen=None):
