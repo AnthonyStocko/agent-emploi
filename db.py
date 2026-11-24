@@ -83,10 +83,24 @@ def query(sql, params=()):
         return [dict(r) for r in con.execute(sql, params).fetchall()]
 
 
+# Fonctions appelées après chaque écriture (coffre.py : copie de la base chez l'agent chef)
+listeners = []
+
+
+def changed():
+    for fn in listeners:
+        try:
+            fn()
+        except Exception as e:  # une copie ratée ne doit jamais faire échouer une écriture
+            print(f"Copie de la base : {e!r}", flush=True)
+
+
 def execute(sql, params=()):
     with _lock, connect() as con:
         cur = con.execute(sql, params)
-        return cur.lastrowid if cur.lastrowid else cur.rowcount
+        result = cur.lastrowid if cur.lastrowid else cur.rowcount
+    changed()
+    return result
 
 
 def get_settings():
@@ -113,4 +127,7 @@ def add_offer(o):
              o.get("company") or "", o.get("location") or "", o.get("contract") or "",
              o.get("salary") or "", o.get("url") or "", o.get("description") or "",
              o.get("published") or ""))
-        return cur.rowcount > 0
+        new = cur.rowcount > 0
+    if new:
+        changed()
+    return new

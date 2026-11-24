@@ -54,6 +54,11 @@ async function loadSettings() {
   for (const k of s._secrets_set || []) { const el = document.getElementById(k); if (el) el.placeholder = "•••• déjà défini (laisser vide pour garder)"; }
   for (const k of s._from_env || []) { const el = document.getElementById(k); if (el) { el.disabled = true; el.title = "Défini par une variable d'environnement"; } }
   $("#logout").hidden = !s._auth;
+  const c = s._coffre || {};
+  $("#coffre-etat").textContent = !c.actif
+    ? "⚠️ Copie chez l'agent chef inactive (HUB_URL et HUB_TOKEN non définis) : la base sera effacée au prochain redéploiement."
+    : c.derniere_copie ? `✅ Base copiée chez l'agent chef le ${new Date(c.derniere_copie * 1000).toLocaleString("fr-FR")}.`
+    : c.erreur ? `⚠️ Copie chez l'agent chef en échec : ${c.erreur}` : "✅ Base reprise de l'agent chef ; elle y sera copiée à la prochaine modification.";
   renderGuide();
 }
 // Aide de démarrage : visible tant que le profil n'est pas rempli ou qu'aucune annonce n'existe.
