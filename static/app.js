@@ -127,30 +127,30 @@ $("#btn-score").onclick = (e) => busy(e.target, "Notation en cours…", async ()
   await loadOffers();
 });
 
-// ---------- sélection de l'agent (cycle tous les 2 jours) et questions fermées ----------
+// ---------- sélection de l'agent (lundi, mercredi, vendredi) et questions fermées ----------
 async function loadCycle() {
-  const r = await api("/api/cycle");
-  const open = r.questions.filter((q) => q.answer == null), box = $("#cycle-questions");
+  const r = await api("/api/selection");
+  const open = r.questions.filter((q) => q.reponse == null), box = $("#cycle-questions");
   box.innerHTML = open.length ? "<h3>❓ Questions de l'agent</h3>" : "";
   for (const q of open) {
     const div = document.createElement("div"); div.className = "question";
-    div.innerHTML = `<p>${esc(q.text)}</p>`;
+    div.innerHTML = `<p>${esc(q.texte)}</p>`;
     const bar = document.createElement("div"); bar.className = "toolbar";
     for (const opt of q.options) {
       const b = document.createElement("button"); b.textContent = opt;
-      b.onclick = () => busy(b, "…", async () => { await api(`/api/questions/${q.id}/answer`, { answer: opt }); toast("Réponse enregistrée."); await loadCycle(); });
+      b.onclick = () => busy(b, "…", async () => { await api(`/api/questions/${q.id}/answer`, { reponse: opt }); toast("Réponse enregistrée."); await loadCycle(); });
       bar.appendChild(b);
     }
     div.appendChild(bar); box.appendChild(div);
   }
   if (r.last) {
-    $("#cycle-title").textContent = `Dernier passage : ${r.last.created_at.slice(0, 16).replace("T", " ")} (UTC)`;
+    $("#cycle-title").textContent = `Dernière sélection : ${r.last.date.slice(0, 16)} (UTC)`;
     $("#cycle-report").innerHTML = md(r.last.report_md);
-    $("#cycle-last").open = (r.last.report.selected || []).length > 0;
+    $("#cycle-last").open = r.last.offer_ids.length > 0;
   }
 }
 $("#btn-cycle").onclick = (e) => busy(e.target, "Passage en cours (plusieurs minutes)…", async () => {
-  const r = await api("/api/cycle", { force: true });
+  const r = await api("/api/selection", {});
   toast(r.status === "en_cours" ? "Un passage est déjà en cours." : "Passage terminé.", 7000);
   await loadCycle(); await loadOffers();
 });
@@ -168,7 +168,7 @@ function fileToBase64(file) {
 $("#btn-import").onclick = async (e) => {
   const btn = e.target, files = [...$("#cv-files").files], box = $("#import-result");
   if (!files.length) return toast("Choisis d'abord un ou plusieurs CV.");
-  if (files.length > 10) return toast("10 fichiers au maximum.");
+  if (files.length > 10) return toast("10 fichiers au maximum, ou une archive .zip de 40 CV.");
   if (files.reduce((n, f) => n + f.size, 0) > 20e6) return toast("Fichiers trop lourds (20 Mo au total).");
   const old = btn.textContent; btn.disabled = true; btn.classList.add("busy");
   const step = (t) => (btn.textContent = t);
@@ -179,8 +179,9 @@ $("#btn-import").onclick = async (e) => {
     const p = await api("/api/profile/import", { files: payload });
     await loadSettings();
     let html = `<h3>Profil défini à partir de ${p.files.length} CV</h3><p>${esc(p.resume)}</p>
-      <p><strong>Postes recherchés :</strong> ${esc(p.keywords)}</p>`;
-    if (p.a_verifier.length) html += `<p><strong>À vérifier dans tes CV :</strong></p><ul>${p.a_verifier.map((x) => `<li>${esc(x)}</li>`).join("")}</ul>`;
+      <p><strong>Postes recherchés :</strong> ${esc(p.keywords)}</p>
+      <p>${esc(p.fiches || 0)} fiche(s) d'angle gardée(s) dans l'archive de CV.</p>`;
+    if (p.a_verifier.length) html += `<p><strong>À vérifier dans tes CV</strong> (l'agent t'interrogera sur ces points lors des prochaines sélections) :</p><ul>${p.a_verifier.map((x) => `<li>${esc(x)}</li>`).join("")}</ul>`;
     box.innerHTML = html; box.hidden = false;
     step("2/3 Recherche des offres…");
     const c = await api("/api/collect", {});
@@ -331,4 +332,7 @@ $("#iv-close").onclick = () => {
 };
 
 { const b = document.querySelector(`nav button[data-tab="${location.hash.slice(1)}"]`); if (b) b.click(); }
-loadSettings().then(loadOffers).then(loadCycle).catch((e) => toast(e.message));
+// Lien direct vers une offre (#offre-12), utilisé par le point du matin de l'agent chef
+const direct = location.hash.match(/^#offre-(\d+)$/);
+loadSettings().then(loadOffers).then(loadCycle).then(() => { if (direct) openOffer(Number(direct[1])); })
+  .catch((e) => toast(e.message));

@@ -158,7 +158,7 @@ def mail_alerts(s):
                 "Format : liste JSON d'objets {\"title\", \"company\", \"location\", \"url\", "
                 "\"description\"}. N'invente rien : laisse une chaîne vide si l'info manque. "
                 "Renvoie [] si le mail ne contient aucune annonce.\n\n"
-                f"Objet : {subject}\n\n{body}")
+                f"Objet : {subject}\n\n{body}", step="collecte")
             for j in jobs if isinstance(jobs, list) else []:
                 if not isinstance(j, dict) or not j.get("title"):
                     continue
@@ -191,7 +191,7 @@ def manual(text):
     j = llm.ask_json(
         "Structure cette annonce d'emploi en JSON : {\"title\", \"company\", \"location\", "
         "\"contract\", \"salary\", \"description\"}. La description reprend fidèlement missions, "
-        "profil recherché et conditions. N'invente rien : chaîne vide si l'info manque.\n\n" + text)
+        "profil recherché et conditions. N'invente rien : chaîne vide si l'info manque.\n\n" + text, step="annonce")
     if not isinstance(j, dict):
         raise SourceError("Annonce non reconnue.")
     j.update(source="Manuelle", url=url,

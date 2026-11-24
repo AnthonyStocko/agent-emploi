@@ -31,10 +31,10 @@
   </div>
   <div id="cycle-card" class="card cycle">
     <h2>🎯 Sélection de l'agent</h2>
-    <p class="hint">Tous les 2 jours, l'agent choisit seul 1 ou 2 offres notées 80 ou plus, avec un CV et une lettre prêts à relire. Il n'envoie rien : tu relis et tu postules toi-même.</p>
+    <p class="hint">Les lundis, mercredis et vendredis, l'agent choisit seul 1 ou 2 offres notées 80 ou plus, avec un CV et une lettre prêts à relire. Il n'envoie rien : tu relis et tu postules toi-même.</p>
     <div id="cycle-questions"></div>
-    <details id="cycle-last"><summary id="cycle-title">Aucun passage pour l'instant</summary><div id="cycle-report" class="md"></div></details>
-    <div class="toolbar"><button id="btn-cycle">▶️ Lancer un passage maintenant</button></div>
+    <details id="cycle-last"><summary id="cycle-title">Aucune sélection pour l'instant</summary><div id="cycle-report" class="md"></div></details>
+    <div class="toolbar"><button id="btn-cycle">▶️ Lancer une sélection maintenant</button></div>
   </div>
   <div class="toolbar">
     <button id="btn-collect" class="primary">🔍 Chercher des annonces</button>
@@ -65,8 +65,8 @@
 <section id="tab-profile" hidden>
   <div class="card" style="margin-bottom:16px">
     <h2>📄 Importer mes CV</h2>
-    <p class="hint">Sélectionne les CV que tu as déjà rédigés (PDF, DOCX, ODT, TXT — 10 au maximum). L'agent les fusionne en un CV maître, en déduit les postes à viser, puis cherche et note les offres. Compte 2 à 5 minutes.</p>
-    <input id="cv-files" type="file" multiple accept=".pdf,.docx,.odt,.txt,.md">
+    <p class="hint">Sélectionne les CV que tu as déjà rédigés (PDF, DOCX, ODT, TXT — 10 au maximum), ou une archive .zip de 40 CV au plus. Pour chaque CV, l'agent garde une fiche d'angle (poste visé, titre, compétences mises en avant, date) qu'il réutilise pour les offres proches. L'agent les fusionne en un CV maître, en déduit les postes à viser, puis cherche et note les offres. Compte 2 à 5 minutes.</p>
+    <input id="cv-files" type="file" multiple accept=".pdf,.docx,.odt,.txt,.md,.zip">
     <div class="toolbar"><button id="btn-import" class="primary">Définir mon profil et proposer des offres</button></div>
     <div id="import-result" class="md" hidden></div>
   </div>
@@ -83,7 +83,7 @@
     <h2>🧹 Préfiltre (sans modèle, avant la notation)</h2>
     <label>Zone acceptée : communes ou numéros de département, séparés par des virgules (vide = partout) <input id="zone" placeholder="ex. 69, 01, Lyon, Villeurbanne"></label>
     <label>Types de contrat acceptés (vide = tous) <input id="contracts" placeholder="ex. CDI, CDD"></label>
-    <label>Mots qui excluent une annonce <input id="exclude_words" placeholder="ex. ESN, astreinte, commercial"></label>
+    <label>Mots exclus (une annonce qui en contient un est écartée) <input id="exclude_words" placeholder="ex. ESN, astreinte, commercial"></label>
     <button class="primary save" data-keys="cv_master,keywords,location,departement,criteria,zone,contracts,exclude_words">Enregistrer</button>
   </div>
 </section>
