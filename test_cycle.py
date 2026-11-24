@@ -146,5 +146,19 @@ class QuestionsTest(Base):
             self.assertEqual(cycle.ask_questions(S, []), [])
 
 
+
+class ModeleTest(unittest.TestCase):
+    def test_ask_json_transmet_le_modele(self):
+        seen = []
+
+        def fake_run(command, **kw):
+            seen.append(command)
+            return mock.Mock(stdout='{"result": "[1]"}', stderr="", returncode=0)
+        with mock.patch.object(llm.shutil, "which", return_value="claude"), \
+                mock.patch.object(llm.subprocess, "run", fake_run), mock.patch.dict(os.environ, {"RENDER": ""}):
+            self.assertEqual(llm.ask_json("x", model="haiku"), [1])
+        self.assertEqual(seen[0][seen[0].index("--model") + 1], "haiku")
+
+
 if __name__ == "__main__":
     unittest.main()

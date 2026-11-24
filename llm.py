@@ -29,7 +29,7 @@ class LLMError(Exception):
     pass
 
 
-# Modèle économique (notation, sélection des questions) ; le modèle principal (CLAUDE_CLI_MODEL, sinon
+# Modèle économique (notation, questions fermées) ; le modèle principal (CLAUDE_CLI_MODEL, sinon
 # celui de Claude Code) rédige les CV et les lettres.
 ECO_MODEL = os.getenv("CLAUDE_CLI_MODEL_ECO", "haiku")
 
@@ -81,9 +81,9 @@ def ask(prompt, timeout=None, model=None):
     return str(data.get("result") or "").strip()
 
 
-def ask_json(prompt, timeout=None):
+def ask_json(prompt, timeout=None, model=None):
     """Demande une réponse JSON et l'extrait même si elle est entourée de texte."""
-    text = ask(prompt + "\n\nRéponds uniquement avec du JSON valide, sans texte autour.", timeout)
+    text = ask(prompt + "\n\nRéponds uniquement avec du JSON valide, sans texte autour.", timeout, model)
     text = re.sub(r"^```(?:json)?|```$", "", text.strip(), flags=re.M).strip()
     try:
         return json.loads(text)
