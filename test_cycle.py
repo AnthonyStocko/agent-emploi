@@ -75,6 +75,38 @@ class PrefiltreTest(Base):
         offer(1, location="Brest", contract="Stage")
         self.assertEqual(cycle.prefilter({}), 0)
 
+    def test_zone_par_defaut_departement_et_ville_du_profil(self):
+        offer(1, location="75 - Paris")
+        lyon = offer(2, location="69 - Villeurbanne")
+        offer(3, location="Marseille, Bouches-du-Rhône")
+        self.assertEqual(cycle.prefilter({"departement": "69", "location": "Lyon"}), 2)
+        self.assertIsNone(db.query("SELECT score FROM offers WHERE id=?", (lyon["id"],))[0]["score"])
+
+    def test_offre_deja_notee_repasse_le_prefiltre_a_la_selection(self):
+        paris = offer(1, location="75 - Paris")
+        lyon = offer(2)
+        db.execute("UPDATE offers SET score=92, score_reason='très bien' WHERE id IN (?, ?)", (paris["id"], lyon["id"]))
+        seen = []
+
+        def ask_json(prompt, timeout=None, model=None, step=None):
+            seen.append(prompt)
+            return {"retenues": [{"id": paris["id"], "pourquoi": "p", "mise_en_avant": [], "ecart": "e"}]}
+        with mock.patch.object(llm, "ask_json", ask_json):
+            picked, _ = cycle.select({**S, "zone": "", "departement": "69"}, [])
+        self.assertEqual(picked, [])                       # l'offre de Paris n'est plus proposée au modèle
+        self.assertNotIn("Poste 1", seen[0])
+        self.assertIn("Poste 2", seen[0])
+        row = db.query("SELECT status, score_reason FROM offers WHERE id=?", (paris["id"],))[0]
+        self.assertEqual(row["status"], "ecartee")
+        self.assertTrue(row["score_reason"].startswith("Préfiltre : hors zone"))
+
+    def test_la_notation_connait_la_zone(self):
+        offer(1)
+        seen = []
+        with mock.patch.object(llm, "ask_json", lambda p, **k: seen.append(p) or []):
+            cycle.score({**S, "zone": "", "departement": "69"}, [db.query("SELECT id FROM offers")[0]["id"]])
+        self.assertIn("Zone géographique acceptée : 69.", seen[0])
+
 
 def fake_llm(calls, score=90, questions=None):
     def run(prompt, timeout=None, model=None):

@@ -78,6 +78,20 @@ def _in_zone(location, zones):
     return False
 
 
+def zones_of(s):
+    """Zone acceptée : le réglage « zone » ; à défaut, le département et la ville du profil (ceux qui
+    servent déjà à la recherche), pour qu'un profil rempli ne laisse jamais passer toute la France."""
+    zones = _terms(s.get("zone"))
+    if zones:
+        return zones
+    return _terms(s.get("departement")) + _terms(s.get("location"))
+
+
+def zone_text(s):
+    zones = zones_of(s)
+    return ", ".join(zones) if zones else "(aucune zone réglée)"
+
+
 def prefilter_reason(o, s, seen=None):
     """Raison d'écarter l'annonce sans modèle, ou chaîne vide si elle passe."""
     if seen is not None:
@@ -85,7 +99,7 @@ def prefilter_reason(o, s, seen=None):
         key = (_norm(o.get("title")), _norm(o.get("company")))
         if key[1] and key in seen and seen[key] != o["id"]:
             return f"déjà vue (annonce n°{seen[key]})"
-    zones = _terms(s.get("zone"))
+    zones = zones_of(s)
     if not _in_zone(o.get("location"), zones):
         return f"hors zone ({o.get('location')})"
     wanted = _terms(s.get("contracts"))
@@ -127,7 +141,11 @@ def score(s, ids):
     res = llm.ask_json(
         f"{agent.MISSION}\n\n{agent._profile(s, 'gouts_offres', 'profil')}\n\nÉTAPE 3 (notation). Note de 0 "
         "à 100 l'adéquation de chaque annonce avec le CV maître et les goûts connus. Sois exigeant : 80 ou "
-        "plus seulement si les exigences clés sont couvertes par le CV maître.\nFormat : liste JSON d'objets "
+        "plus seulement si les exigences clés sont couvertes par le CV maître.\n"
+        f"Zone géographique acceptée : {zone_text(s)}. Une annonce dont le lieu est hors de cette zone est notée "
+        "moins de 50 ; si le lieu n'apparaît ni dans le champ Lieu ni dans le texte, dis-le dans la raison et ne "
+        "dépasse pas 79.\n"
+        "Format : liste JSON d'objets "
         "{\"id\": entier, \"score\": 0-100, \"raison\": \"une phrase : point fort principal, puis écart "
         "principal\"}.\n\n" + listing, model=llm.ECO_MODEL, step="notation")
     done = 0
@@ -154,8 +172,16 @@ def _decisions_text():
 def select(s, scored_ids):
     """Un appel de sélection : au plus 2 offres notées 80 ou plus, ou l'explication de l'absence."""
     since = _sql_time(_utcnow() - datetime.timedelta(days=30))
-    candidates = db.query("SELECT * FROM offers WHERE score >= ? AND status = 'nouvelle' AND selected_at IS NULL "
-                          "AND created_at >= ? ORDER BY score DESC, id DESC LIMIT 8", (SELECT_MIN, since))
+    candidates = []
+    for o in db.query("SELECT * FROM offers WHERE score >= ? AND status = 'nouvelle' AND selected_at IS NULL "
+                      "AND created_at >= ? ORDER BY score DESC, id DESC", (SELECT_MIN, since)):
+        # Une offre notée avant le préfiltre, ou avant un changement de réglage, repasse le préfiltre ici
+        reason = prefilter_reason(o, s)
+        if reason:
+            db.execute("UPDATE offers SET status='ecartee', score_reason=? WHERE id=?",
+                       (f"Préfiltre : {reason} (note {o['score']} : {o['score_reason']})", o["id"]))
+        elif len(candidates) < 8:
+            candidates.append(o)
     if not candidates:
         if not scored_ids:
             return [], "Aucune nouvelle annonce depuis le dernier passage."

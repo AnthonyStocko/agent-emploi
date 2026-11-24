@@ -94,9 +94,12 @@ jamais pour une offre non retenue. Chaque sélection est enregistrée dans la ta
 offres retenues, motif si aucune).
 
 **Préfiltre, sans modèle, avant toute notation** : annonces déjà vues (même intitulé et même entreprise
-qu'une annonce connue, vue, écartée ou postulée), mots exclus, et, s'ils sont remplis, zone et types de
-contrat acceptés (onglet Profil). Les annonces écartées passent au statut « Écartée » avec la raison
-« Préfiltre : … ». Un réglage vide ne filtre rien.
+qu'une annonce connue, vue, écartée ou postulée), mots exclus, zone et, s'ils sont remplis, types de
+contrat acceptés (onglet Profil). La zone est le réglage « Zone acceptée » ou, s'il est vide, le
+département et la ville du profil ; une annonce sans lieu passe le préfiltre, mais la notation ne lui
+donne pas 80 si le texte ne dit pas où est le poste, et met sous 50 une annonce hors zone. Au moment de
+la sélection, les offres déjà notées repassent le préfiltre (réglages modifiés, offres notées avant
+lui). Les annonces écartées passent au statut « Écartée » avec la raison « Préfiltre : … ».
 
 **Questions fermées** : 2 nouvelles par jour au plus, jamais reposées. Elles partent de ce qui l'a fait
 hésiter, des incohérences entre tes CV (`a_verifier`, relevées à l'import) et des critères absents. Tu
