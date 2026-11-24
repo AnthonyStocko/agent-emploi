@@ -95,8 +95,12 @@ offres retenues, motif si aucune).
 
 **Préfiltre, sans modèle, avant toute notation** : annonces déjà vues (même intitulé et même entreprise
 qu'une annonce connue, vue, écartée ou postulée), mots exclus, zone et, s'ils sont remplis, types de
-contrat acceptés (onglet Profil). La zone est le réglage « Zone acceptée » ou, s'il est vide, le
-département et la ville du profil ; une annonce sans lieu passe le préfiltre, mais la notation ne lui
+contrat acceptés (onglet Profil). La zone est le réglage « Zone acceptée », appliqué à toutes les sources.
+S'il est vide, la zone est celle des recherches : France Travail cherche dans le département, Adzuna autour
+de la ville dans un rayon de 30 km (réglage « Rayon », `rayon_km`), et leurs annonces ne sont pas
+recontrôlées ; les alertes mail et les annonces collées sont contrôlées sur le département et la ville.
+Adzuna écrit ses lieux « Saint-Étienne, Loire », sans numéro de département : une zone explicite doit donc
+citer des communes. Une annonce sans lieu passe le préfiltre, mais la notation ne lui
 donne pas 80 si le texte ne dit pas où est le poste, et met sous 50 une annonce hors zone. Au moment de
 la sélection, les offres déjà notées repassent le préfiltre (réglages modifiés, offres notées avant
 lui). Les annonces écartées passent au statut « Écartée » avec la raison « Préfiltre : … ».

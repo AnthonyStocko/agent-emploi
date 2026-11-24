@@ -77,14 +77,15 @@
     <h2>🎯 Recherche</h2>
     <label>Postes recherchés, séparés par des virgules (4 au maximum) <input id="keywords" placeholder="ex. chef de projet digital, product owner"></label>
     <label>Ville ou région (Adzuna) <input id="location" placeholder="ex. Lyon"></label>
+    <label>Rayon autour de cette ville, en km (Adzuna, 30 par défaut) <input id="rayon_km" type="number" min="1" max="200" placeholder="30"></label>
     <label>Numéro de département (France Travail) <input id="departement" placeholder="ex. 69"></label>
     <label>Autres critères, en clair
       <textarea id="criteria" rows="4" placeholder="ex. CDI, 45 k€ minimum, 2 jours de télétravail, pas d'ESN"></textarea></label>
     <h2>🧹 Préfiltre (sans modèle, avant la notation)</h2>
-    <label>Zone acceptée : communes ou numéros de département, séparés par des virgules (vide = le département et la ville ci-dessus ; un lieu non indiqué passe) <input id="zone" placeholder="ex. 69, 01, Lyon, Villeurbanne"></label>
+    <label>Zone acceptée : communes ou numéros de département, séparés par des virgules (vide = la zone des recherches : département pour France Travail, ville et rayon pour Adzuna, département et ville pour les autres sources ; un lieu non indiqué passe) <input id="zone" placeholder="ex. 69, 01, Lyon, Villeurbanne"></label>
     <label>Types de contrat acceptés (vide = tous) <input id="contracts" placeholder="ex. CDI, CDD"></label>
     <label>Mots exclus (une annonce qui en contient un est écartée) <input id="exclude_words" placeholder="ex. ESN, astreinte, commercial"></label>
-    <button class="primary save" data-keys="cv_master,keywords,location,departement,criteria,zone,contracts,exclude_words">Enregistrer</button>
+    <button class="primary save" data-keys="cv_master,keywords,location,rayon_km,departement,criteria,zone,contracts,exclude_words">Enregistrer</button>
   </div>
 </section>
 

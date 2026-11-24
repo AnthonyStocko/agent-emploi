@@ -82,6 +82,20 @@ class PrefiltreTest(Base):
         self.assertEqual(cycle.prefilter({"departement": "69", "location": "Lyon"}), 2)
         self.assertIsNone(db.query("SELECT score FROM offers WHERE id=?", (lyon["id"],))[0]["score"])
 
+    def test_zone_des_recherches_france_travail_et_adzuna(self):
+        """Sans « Zone acceptée » : Adzuna (« Saint-Étienne, Loire ») et France Travail sont déjà cherchés
+        dans la zone ; une alerte mail reste contrôlée sur le département et la ville."""
+        profil = {"departement": "42", "location": "Planfoy"}
+        adzuna = offer(1, source="Adzuna", location="Saint-Étienne, Loire")
+        ft = offer(2, source="France Travail", location="42 - ST ETIENNE")
+        offer(3, source="mail", location="Lyon")
+        self.assertEqual(cycle.prefilter(profil), 1)
+        for o in (adzuna, ft):
+            self.assertIsNone(db.query("SELECT score FROM offers WHERE id=?", (o["id"],))[0]["score"])
+        # Avec une zone explicite, toutes les sources sont contrôlées
+        self.assertTrue(cycle.prefilter_reason(adzuna, {**profil, "zone": "42"}).startswith("hors zone"))
+        self.assertEqual(cycle.prefilter_reason(adzuna, {**profil, "zone": "42, Saint-Étienne"}), "")
+
     def test_offre_deja_notee_repasse_le_prefiltre_a_la_selection(self):
         paris = offer(1, location="75 - Paris")
         lyon = offer(2)
@@ -168,6 +182,24 @@ class SelectionTest(Base):
         self.assertEqual(cycle.last_selection()["motif_si_vide"], "Peu d'offres en CDI.\nSurtout de l'intérim.")
         self.assertEqual(len(calls), 3)  # notation, explication du marché, questions
 
+    def test_trouvees_et_nouvelles_par_source(self):
+        report = {"adzuna": {"found": 30, "new": 0}, "mail": {"error": "Réglages IMAP manquants"}}
+        with mock.patch.object(llm, "_run", fake_llm([])), \
+                mock.patch.object(cycle.sources, "collect_all", return_value=report):
+            md = cycle.run(S, 0)["report_md"]
+        self.assertIn("Adzuna : 30 trouvée(s), 0 nouvelle(s)", md)
+
+    def test_adzuna_cherche_dans_un_rayon(self):
+        import sources
+        urls = []
+        with mock.patch.object(sources, "_http", lambda url, **k: urls.append(url) or '{"results": []}'):
+            sources.adzuna({"adzuna_app_id": "i", "adzuna_app_key": "k", "keywords": "PMO", "location": "Planfoy"})
+            sources.adzuna({"adzuna_app_id": "i", "adzuna_app_key": "k", "keywords": "PMO", "location": "Planfoy",
+                            "rayon_km": "50"})
+        self.assertIn("where=Planfoy", urls[0])
+        self.assertIn("distance=30", urls[0])
+        self.assertIn("distance=50", urls[1])
+
     def test_sources_en_erreur_affichees(self):
         report = {"france_travail": {"error": "Identifiants France Travail manquants (onglet Réglages)."},
                   "adzuna": {"found": 0, "new": 0}}
@@ -176,7 +208,7 @@ class SelectionTest(Base):
             r = cycle.run(S, 0)
         self.assertIn("**Sources en erreur :**\n- France Travail : Identifiants France Travail manquants",
                       r["report_md"])
-        self.assertNotIn("Adzuna", r["report_md"])
+        self.assertNotIn("- Adzuna", r["report_md"])  # pas dans les erreurs
 
     def test_budget_depasse_saute_la_redaction(self):
         offer(1)

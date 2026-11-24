@@ -100,8 +100,12 @@ def prefilter_reason(o, s, seen=None):
         key = (_norm(o.get("title")), _norm(o.get("company")))
         if key[1] and key in seen and seen[key] != o["id"]:
             return f"déjà vue (annonce n°{seen[key]})"
-    zones = zones_of(s)
-    if not _in_zone(o.get("location"), zones):
+    # Sans « Zone acceptée », la zone vient de la recherche elle-même : France Travail cherche dans le
+    # département, Adzuna autour de la ville (rayon_km). Leurs annonces sont donc déjà dans la zone ; seules
+    # les autres (alertes mail, annonces collées) sont contrôlées. Adzuna écrit « Saint-Étienne, Loire »,
+    # sans numéro de département : le contrôler sur « 42, Planfoy » l'écarterait à tort.
+    searched = not _terms(s.get("zone")) and o.get("source") in ("France Travail", "Adzuna")
+    if not searched and not _in_zone(o.get("location"), zones_of(s)):
         return f"hors zone ({o.get('location')})"
     wanted = _terms(s.get("contracts"))
     kind = contract_kind(o.get("contract"))
@@ -378,6 +382,10 @@ def _run(s, budget):
     new = sum(v.get("new", 0) for v in collected.values() if isinstance(v, dict))
     lines = [f"## Sélection du {datetime.date.today().isoformat()}",
              f"{new} annonce(s) collectée(s), {removed} écartée(s) par le préfiltre, {scored} notée(s)."]
+    found = [f"{SOURCE_NAMES.get(k, k)} : {v.get('found', 0)} trouvée(s), {v.get('new', 0)} nouvelle(s)"
+             for k, v in collected.items() if isinstance(v, dict) and not v.get("error")]
+    if found:  # « 30 trouvées, 0 nouvelle » (déjà connues) n'est pas « 0 trouvée » (recherche trop étroite)
+        lines[1] += "\n" + " · ".join(found)
     if selected:
         lines += [x["markdown"] for x in selected]
     else:

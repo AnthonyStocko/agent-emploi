@@ -85,6 +85,17 @@ def france_travail(s):
 
 
 # ---------- Adzuna ----------
+RAYON_KM = 30
+
+
+def rayon_km(s):
+    """Rayon de recherche Adzuna autour de la ville du profil (réglage rayon_km, 30 km par défaut)."""
+    try:
+        return max(1, min(200, int(s.get("rayon_km") or RAYON_KM)))
+    except (TypeError, ValueError):
+        return RAYON_KM
+
+
 def adzuna(s):
     app_id, key = s.get("adzuna_app_id"), s.get("adzuna_app_key")
     if not (app_id and key):
@@ -95,6 +106,8 @@ def adzuna(s):
                   "what": kw, "sort_by": "date", "content-type": "application/json"}
         if s.get("location"):
             params["where"] = s["location"]
+            # Rayon autour de la ville : sans lui, une petite commune ne renvoie presque rien
+            params["distance"] = rayon_km(s)
         raw = _http("https://api.adzuna.com/v1/api/jobs/fr/search/1?" + urllib.parse.urlencode(params))
         for r in json.loads(raw).get("results", []):
             if r.get("id") in seen:
