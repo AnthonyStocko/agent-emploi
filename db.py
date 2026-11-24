@@ -33,15 +33,24 @@ CREATE TABLE IF NOT EXISTS interviews (
   created_at TEXT DEFAULT (datetime('now'))
 );
 CREATE TABLE IF NOT EXISTS seen_mails (msg_id TEXT PRIMARY KEY);
-CREATE TABLE IF NOT EXISTS cycles (
+CREATE TABLE IF NOT EXISTS selections (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
-  report TEXT, report_md TEXT,
-  created_at TEXT DEFAULT (datetime('now'))
+  date TEXT, offer_ids TEXT, motif_si_vide TEXT, report TEXT, report_md TEXT
 );
 CREATE TABLE IF NOT EXISTS questions (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
-  text TEXT, options TEXT, answer TEXT, answered_at TEXT,
-  asked_at TEXT DEFAULT (datetime('now'))
+  texte TEXT, options TEXT, reponse TEXT, date_reponse TEXT,
+  date_pose TEXT DEFAULT (datetime('now'))
+);
+CREATE TABLE IF NOT EXISTS cv_archive (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  fichier TEXT, poste_vise TEXT, titre TEXT, competences TEXT, date TEXT,
+  created_at TEXT DEFAULT (datetime('now'))
+);
+CREATE TABLE IF NOT EXISTS llm_calls (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  etape TEXT, modele TEXT, taille_prompt INTEGER, taille_reponse INTEGER, duree_ms INTEGER, ok INTEGER,
+  created_at TEXT DEFAULT (datetime('now'))
 );
 """
 # Colonnes ajoutées après coup : créées au démarrage si la base est plus ancienne
@@ -57,6 +66,12 @@ def connect():
 def init():
     with connect() as con:
         con.executescript(SCHEMA)
+        # Première version de la table des questions (colonnes en anglais) : renommées en place
+        qcols = {r[1] for r in con.execute("PRAGMA table_info(questions)")}
+        for old, new in (("text", "texte"), ("answer", "reponse"), ("answered_at", "date_reponse"),
+                         ("asked_at", "date_pose")):
+            if old in qcols:
+                con.execute(f"ALTER TABLE questions RENAME COLUMN {old} TO {new}")
         have = {r[1] for r in con.execute("PRAGMA table_info(offers)")}
         for col, kind in OFFER_COLUMNS.items():
             if col not in have:

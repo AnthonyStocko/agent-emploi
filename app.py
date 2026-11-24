@@ -51,17 +51,18 @@ def get_offer(oid):
 def import_backup(body):
     """Restaure une sauvegarde créée par /api/export (remplace les données actuelles)."""
     offers, interviews = body.get("offers"), body.get("interviews") or []
-    questions = body.get("questions") if isinstance(body.get("questions"), list) else None
     if not isinstance(offers, list) or not isinstance(body.get("settings"), dict):
         raise ApiError("Fichier de sauvegarde invalide.")
-    cols = {t: [r["name"] for r in db.query(f"PRAGMA table_info({t})")] for t in ("offers", "interviews", "questions")}
+    optional = ("questions", "cv_archive", "selections")  # absentes d'une sauvegarde plus ancienne
+    cols = {t: [r["name"] for r in db.query(f"PRAGMA table_info({t})")] for t in ("offers", "interviews") + optional}
     with db._lock, db.connect() as con:
         con.execute("DELETE FROM offers")
         con.execute("DELETE FROM interviews")
         tables = [("offers", offers), ("interviews", interviews)]
-        if questions is not None:  # une sauvegarde plus ancienne n'a pas de questions : on garde les actuelles
-            con.execute("DELETE FROM questions")
-            tables.append(("questions", questions))
+        for t in optional:
+            if isinstance(body.get(t), list):  # sinon on garde les données actuelles
+                con.execute(f"DELETE FROM {t}")
+                tables.append((t, body[t]))
         for table, rows in tables:
             for row in rows:
                 keys = [k for k in cols[table] if isinstance(row, dict) and k in row]
@@ -93,17 +94,24 @@ def api_get(path):
                             "('nouvelle', 'a_postuler') ORDER BY score DESC, id DESC LIMIT 10"),
             "relances": db.query(f"SELECT {cols} FROM offers WHERE status = 'postulee' "
                                  "AND applied_at <= ? ORDER BY applied_at", (week_ago,)),
-            "last_cycle": (lambda c: c and {"created_at": c["created_at"], "report_md": c["report_md"]})(cycle.last()),
-            "open_questions": [q for q in cycle.questions() if q["answer"] is None],
+            "last_selection": (lambda c: c and {k: c[k] for k in ("date", "offer_ids", "motif_si_vide")}
+                               )(cycle.last_selection()),
+            "open_questions": [q for q in cycle.questions() if q["reponse"] is None],
         }
     if path == "/api/export":
         return {"settings": {r["key"]: json.loads(r["value"]) for r in
                              db.query("SELECT key, value FROM settings")},
                 "offers": db.query("SELECT * FROM offers"),
                 "interviews": db.query("SELECT * FROM interviews"),
-                "questions": db.query("SELECT * FROM questions")}
-    if path == "/api/cycle":
-        return {"last": cycle.last(), "questions": cycle.questions()}
+                "questions": db.query("SELECT * FROM questions"),
+                "cv_archive": db.query("SELECT * FROM cv_archive"),
+                "selections": db.query("SELECT * FROM selections")}
+    if path == "/api/selection":
+        return {"last": cycle.last_selection(), "questions": cycle.questions()}
+    if path == "/api/consommation":
+        return cycle.consumption()
+    if path == "/api/cv_archive":
+        return db.query("SELECT * FROM cv_archive ORDER BY date DESC, id DESC")
     if path == "/api/offers":
         return db.query(f"SELECT {LIST_COLS} FROM offers ORDER BY score IS NULL, score DESC, id DESC")
     m = re.fullmatch(r"/api/offers/(\d+)", path)
@@ -126,9 +134,15 @@ def api_post(path, body):
         return import_backup(body)
     if path == "/api/collect":
         return sources.collect_all(s, body.get("sources"))
-    if path == "/api/cycle":
-        # Le point du matin de l'agent chef l'appelle chaque jour ouvré : le cycle ne tourne que tous les 2 jours
-        return cycle.run(s, force=bool(body.get("force")))
+    if path == "/api/selection":
+        # Lancée par le point du matin de l'agent chef (lundi, mercredi, vendredi) ou le bouton de la page.
+        # Budget en jetons estimés : celui envoyé par l'agent chef, sinon BUDGET_CYCLE_EMPLOI, sinon aucun.
+        budget = body.get("budget") or os.getenv("BUDGET_CYCLE_EMPLOI") or 0
+        try:
+            budget = max(0, int(budget))
+        except (TypeError, ValueError):
+            raise ApiError("Budget invalide : nombre de jetons attendu.")
+        return cycle.run(s, budget)
     if path == "/api/score":
         scored, left = agent.score_pending(s)
         return {"scored": scored, "left": left}
@@ -184,7 +198,7 @@ def api_post(path, body):
     m = re.fullmatch(r"/api/questions/(\d+)/answer", path)
     if m:
         try:
-            return cycle.answer(int(m.group(1)), str(body.get("answer") or ""))
+            return cycle.answer(int(m.group(1)), str(body.get("reponse") or body.get("answer") or ""))
         except ValueError as e:
             raise ApiError(str(e), 404 if "introuvable" in str(e) else 400)
     m = re.fullmatch(r"/api/interviews/(\d+)/feedback", path)

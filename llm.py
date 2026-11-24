@@ -14,6 +14,9 @@ import re
 import shutil
 import subprocess
 import tempfile
+import time
+
+import db
 
 
 CLI_TIMEOUT_SECONDS = int(os.getenv("CLI_TIMEOUT_SECONDS", "300"))
@@ -32,6 +35,7 @@ class LLMError(Exception):
 # Modèle économique (notation, questions fermées) ; le modèle principal (CLAUDE_CLI_MODEL, sinon
 # celui de Claude Code) rédige les CV et les lettres.
 ECO_MODEL = os.getenv("CLAUDE_CLI_MODEL_ECO", "haiku")
+CHARS_PER_TOKEN = 4  # estimation des jetons à partir de la taille des textes
 
 
 def _command(model=None):
@@ -53,7 +57,31 @@ def _command(model=None):
     return command
 
 
-def ask(prompt, timeout=None, model=None):
+def ask(prompt, timeout=None, model=None, step="autre"):
+    """Appel au modèle. Chaque appel est journalisé (table llm_calls) : étape, modèle, tailles et durée,
+    jamais le contenu du prompt ni de la réponse."""
+    start, text = time.monotonic(), ""
+    try:
+        text = _run(prompt, timeout, model)
+        return text
+    finally:
+        _record(step, model or os.getenv("CLAUDE_CLI_MODEL") or "défaut", len(prompt), len(text),
+                int((time.monotonic() - start) * 1000), bool(text))
+
+
+def _record(step, model, prompt_chars, answer_chars, ms, ok):
+    try:
+        db.execute("INSERT INTO llm_calls(etape, modele, taille_prompt, taille_reponse, duree_ms, ok) "
+                   "VALUES(?,?,?,?,?,?)", (str(step)[:40], str(model)[:60], prompt_chars, answer_chars, ms, int(ok)))
+    except Exception as e:  # le journal ne doit jamais faire échouer un appel
+        print(f"Journal des appels indisponible : {e!r}", flush=True)
+
+
+def estimated_tokens(chars):
+    return int(chars) // CHARS_PER_TOKEN
+
+
+def _run(prompt, timeout=None, model=None):
     command = _command(model)
     env = {k: os.environ[k] for k in CLI_ENV_ALLOWLIST if k in os.environ}
     workdir = tempfile.mkdtemp(prefix="agent-emploi-")  # dossier vide : rien à lire
@@ -81,9 +109,9 @@ def ask(prompt, timeout=None, model=None):
     return str(data.get("result") or "").strip()
 
 
-def ask_json(prompt, timeout=None, model=None):
+def ask_json(prompt, timeout=None, model=None, step="autre"):
     """Demande une réponse JSON et l'extrait même si elle est entourée de texte."""
-    text = ask(prompt + "\n\nRéponds uniquement avec du JSON valide, sans texte autour.", timeout, model)
+    text = ask(prompt + "\n\nRéponds uniquement avec du JSON valide, sans texte autour.", timeout, model, step)
     text = re.sub(r"^```(?:json)?|```$", "", text.strip(), flags=re.M).strip()
     try:
         return json.loads(text)

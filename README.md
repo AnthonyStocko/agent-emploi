@@ -5,7 +5,7 @@
 T'aider dans ta recherche d'emploi : chercher des annonces, les noter selon ton profil, rédiger un CV
 et une lettre adaptés à chacune, suivre tes candidatures et te faire passer des entretiens simulés à la voix.
 
-Tous les 2 jours, il travaille seul : il te présente 1 ou 2 offres très ciblées, chacune avec un CV et
+Les lundis, mercredis et vendredis, il travaille seul : il te présente 1 ou 2 offres très ciblées, chacune avec un CV et
 une lettre prêts à relire, et te pose 1 ou 2 questions fermées pour mieux choisir la fois suivante.
 Mieux vaut aucune offre qu'une offre moyenne. Sa consigne complète est `MISSION` dans `agent.py`.
 
@@ -13,10 +13,10 @@ Mieux vaut aucune offre qu'une offre moyenne. Sa consigne complète est `MISSION
 
 | Domaine | Ce qu'il fait |
 |---|---|
-| Profil | Importe tes CV (PDF, DOCX, ODT, TXT), les fusionne en CV maître, en déduit les postes à viser et le lieu |
+| Profil | Importe tes CV (PDF, DOCX, ODT, TXT, ou une archive .zip de 40 CV), les fusionne en CV maître, en déduit les postes à viser et le lieu, et garde une fiche d'angle par CV |
 | Annonces | Collecte sur France Travail, Adzuna, dans tes alertes mail et à partir d'une annonce collée ; note chaque annonce selon ton profil |
-| Sélection | Tous les 2 jours : collecte, préfiltre sans modèle (zone, contrat, mots exclus, doublons), une passe de notation (24 annonces au plus), puis au plus 2 offres notées 80 ou plus, avec CV et lettre ; sinon, deux lignes sur ce qui manquait |
-| Questions | 1 ou 2 questions fermées par passage (2 par jour au plus), à réponse oui / non ou à choix ; tes réponses orientent les sélections suivantes |
+| Sélection | Lundi, mercredi, vendredi : collecte, préfiltre sans modèle (déjà vues, mots exclus, zone, contrat), une passe de notation (24 annonces au plus), puis au plus 2 offres notées 80 ou plus, avec CV et lettre ; sinon, deux lignes sur ce qui manquait |
+| Questions | 1 ou 2 questions fermées par sélection (2 nouvelles par jour au plus, jamais reposées), à réponse oui / non ou à choix ; tes réponses orientent les sélections suivantes |
 | Candidature | Rédige un CV et une lettre adaptés à l'annonce, que tu relis et envoies toi-même |
 | Suivi | Garde le statut de chaque annonce (écartée, retenue, postulée) et signale celles à relancer |
 | Entretien | Prépare une fiche d'entretien, pose les questions à voix haute, puis rend un retour détaillé |
@@ -43,8 +43,8 @@ Les règles qui s'imposent à toute modification du code sont dans [CLAUDE.md](C
 
 - **Toi**, depuis sa page web (connexion par `APP_USERNAME` / `APP_PASSWORD`).
 - **L'agent chef** ([agent-manager](https://github.com/AnthonyStocko/agent-manager)), qui appelle ses
-  routes `/api/` avec `HUB_TOKEN` : dans la discussion, et chaque matin en semaine pour chercher et
-  noter les offres. En retour, l'agent emploi lit la mémoire commune de l'agent chef et lui signale tes
+  routes `/api/` avec `HUB_TOKEN` : dans la discussion, et chaque matin en semaine pour collecter
+  les offres et, trois fois par semaine, lancer la sélection. En retour, l'agent emploi lit la mémoire commune de l'agent chef et lui signale tes
   décisions (voir « Lien avec l'agent chef »).
 
 L'agent développeur ([agent-dev](https://github.com/AnthonyStocko/agent-dev)) modifie ce dépôt et
@@ -83,22 +83,40 @@ Puis ouvre http://127.0.0.1:8765 (autre port : `python app.py 9000`).
    Tu peux aussi coller une annonce ou son lien.
 4. Ouvre une annonce : génère CV + lettre, la fiche d'entretien, puis lance la simulation.
 
-## Le passage tous les 2 jours
+## La sélection (lundi, mercredi, vendredi)
 
-Le point du matin de l'agent chef appelle `POST /api/cycle` chaque jour ouvré ; l'agent ne fait un
-passage que si le précédent date d'au moins 44 heures (`{"force": true}` passe outre, comme le bouton
-« Lancer un passage maintenant »). Un passage coûte au plus 5 appels au modèle : une notation et les
-questions au modèle économique (`CLAUDE_CLI_MODEL_ECO`, `haiku` par défaut), la sélection et au plus
-2 rédactions au modèle principal (`CLAUDE_CLI_MODEL`, sinon celui de Claude Code). Il ne rédige jamais
-pour une offre non retenue. Les annonces écartées par le préfiltre passent au statut « Écartée » avec
-la raison « Préfiltre : … ».
+Le point du matin de l'agent chef lance `POST /api/selection` les lundis, mercredis et vendredis ; les
+autres jours, il ne fait que collecter (`POST /api/collect`, sans notation). Le bouton « Lancer une
+sélection maintenant » fait la même chose. Une sélection coûte au plus 5 appels au modèle : une notation
+et les questions au modèle économique (`CLAUDE_CLI_MODEL_ECO`, `haiku` par défaut), la sélection et au
+plus 2 rédactions au modèle principal (`CLAUDE_CLI_MODEL`, sinon celui de Claude Code). Il ne rédige
+jamais pour une offre non retenue. Chaque sélection est enregistrée dans la table `selections` (date,
+offres retenues, motif si aucune).
 
-Le préfiltre se règle dans l'onglet Profil : zone acceptée (communes, numéros de département),
-types de contrat acceptés et mots qui excluent une annonce. Un réglage vide ne filtre rien.
+**Préfiltre, sans modèle, avant toute notation** : annonces déjà vues (même intitulé et même entreprise
+qu'une annonce connue, vue, écartée ou postulée), mots exclus, et, s'ils sont remplis, zone et types de
+contrat acceptés (onglet Profil). Les annonces écartées passent au statut « Écartée » avec la raison
+« Préfiltre : … ». Un réglage vide ne filtre rien.
 
-Routes : `GET /api/cycle` (dernier passage et questions), `POST /api/cycle`,
-`POST /api/questions/<id>/answer` avec `{"answer": "<une des options>"}`. Chaque réponse est aussi
-signalée à l'agent chef pour la mémoire commune.
+**Questions fermées** : 2 nouvelles par jour au plus, jamais reposées. Elles partent de ce qui l'a fait
+hésiter, des incohérences entre tes CV (`a_verifier`, relevées à l'import) et des critères absents. Tu
+réponds en un clic dans cette page ou dans le point du matin de l'agent chef. Chaque réponse est
+envoyée à l'agent chef (`reponse_profil`) pour l'espace emploi de sa mémoire, et relue avant chaque
+notation, sélection et rédaction.
+
+**Archive de CV** : l'import accepte une archive .zip de 40 CV au plus. Le CV maître est fusionné comme
+avant ; chaque fichier garde en plus une fiche d'angle (poste visé, titre utilisé, compétences mises en
+avant, date) dans la table `cv_archive`. La rédaction reçoit les 3 fiches les plus proches de l'offre.
+
+**Consommation** : chaque appel au modèle est journalisé dans `llm_calls` (étape, modèle, taille du
+prompt et de la réponse, durée), sans aucun contenu, et résumé sur `GET /api/consommation` (jetons
+estimés à 4 caractères par jeton). Le budget d'une sélection, en jetons estimés, vient de l'agent chef
+(`BUDGET_CYCLE_EMPLOI` chez lui) ou de la variable du même nom ici ; au-delà, la rédaction est sautée et
+la sélection le signale.
+
+Routes : `GET /api/selection` (dernière sélection et questions), `POST /api/selection` (`{"budget": n}`
+facultatif), `POST /api/questions/<id>/answer` avec `{"reponse": "<une des options>"}`,
+`GET /api/consommation`, `GET /api/cv_archive`. Une offre s'ouvre directement avec `/#offre-<id>`.
 
 ## Fonctionnement de la simulation
 
@@ -118,7 +136,7 @@ avec un jeton d'abonnement.
    - `APP_USERNAME` : identifiant de connexion (`admin` par défaut).
 4. Facultatif, pour ne pas ressaisir les sources après chaque déploiement : `FT_CLIENT_ID`,
    `FT_CLIENT_SECRET`, `ADZUNA_APP_ID`, `ADZUNA_APP_KEY`, `IMAP_HOST`, `IMAP_USER`,
-   `IMAP_PASSWORD`, `IMAP_SENDERS`, `IMAP_DAYS`. Autres réglages : `CLAUDE_CLI_MODEL`, `CLAUDE_CLI_MODEL_ECO`,
+   `IMAP_PASSWORD`, `IMAP_SENDERS`, `IMAP_DAYS`. Autres réglages : `CLAUDE_CLI_MODEL`, `CLAUDE_CLI_MODEL_ECO`, `BUDGET_CYCLE_EMPLOI`,
    `CLI_TIMEOUT_SECONDS`, `APP_SESSION_DAYS`, `APP_SESSION_SECRET`.
 
 **Données** : sans disque persistant, la base (CV maître, annonces, suivi) est effacée à chaque
@@ -156,12 +174,12 @@ retours à la ligne autour du jeton sont ignorés). En cas de refus, la réponse
 
     python -m unittest discover -p 'test_*.py'
 
-`test_hub_auth.py` : authentification du lien avec l'agent chef. `test_cycle.py` : préfiltre, garde des
-2 jours, sélection limitée à 2 offres, questions fermées et nombre d'appels au modèle par passage.
+`test_hub_auth.py` : authentification du lien avec l'agent chef. `test_cycle.py` : préfiltre, plafond
+de 2 offres, aucune sélection sous 80, question jamais reposée, budget et journal des appels, import .zip.
 
 ## Fichiers
 
 - `app.py` : serveur et routes — `hub.py` : lien avec l'agent chef — `agent.py` : mission et prompts (tri, rédaction, coaching)
-- `cycle.py` : le passage tous les 2 jours (préfiltre, notation, sélection, questions fermées)
+- `cycle.py` : la sélection (préfiltre, notation, sélection, questions fermées, consommation)
 - `cvimport.py` : import des CV et profil automatique — `sources.py` : collecte — `llm.py` : appel à Claude Code — `db.py` : base SQLite
 - `static/` : interface

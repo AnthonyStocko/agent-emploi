@@ -1,5 +1,6 @@
 """Le cerveau de l'agent : tri, CV + lettre, fiche de préparation, entretien."""
 import json
+import re
 
 import db
 import hub
@@ -86,6 +87,10 @@ def _profile(s, *memory_categories):
     text = (f"CV MAÎTRE DU CANDIDAT :\n{cv}\n\nCRITÈRES DE RECHERCHE :\n"
             f"Postes visés : {s.get('keywords', '')}\nLieu : {s.get('location', '')}\n"
             f"Autres critères : {s.get('criteria', '')}")
+    # Réponses aux questions fermées : relues avant chaque notation, sélection et rédaction
+    answers = answers_text()
+    if answers:
+        text += f"\n\nRÉPONSES D'ANTHONY À TES QUESTIONS FERMÉES (elles orientent tes choix) :\n{answers}"
     # Mémoire commune tenue par l'agent chef : ce que le candidat a montré ou dit au fil du temps
     remembered = hub.memory_text(*memory_categories) if memory_categories else ""
     if remembered:
@@ -113,7 +118,7 @@ def score_pending(s, batch=8, max_batches=5):
             f"{profile}\n\nÉvalue l'adéquation de chaque annonce avec ce candidat. Sois exigeant "
             "et honnête : 80+ = très bon match, 50-79 = jouable, moins de 50 = à écarter.\n"
             "Format : liste JSON d'objets {\"id\": entier, \"score\": 0-100, \"raison\": "
-            "\"une phrase : points forts et principal écart\"}.\n\n" + listing)
+            "\"une phrase : points forts et principal écart\"}.\n\n" + listing, step="notation")
         ids = {o["id"] for o in chunk}
         for r in res if isinstance(res, list) else []:
             try:
@@ -130,26 +135,44 @@ def score_pending(s, batch=8, max_batches=5):
 
 def answers_text():
     """Réponses d'Anthony aux questions fermées, avec leur date."""
-    rows = db.query("SELECT text, answer, answered_at FROM questions WHERE answer IS NOT NULL ORDER BY id")
-    return "\n".join(f"- {r['text']} → {r['answer']} (répondu le {(r['answered_at'] or '')[:10]})" for r in rows)
+    rows = db.query("SELECT texte, reponse, date_reponse FROM questions WHERE reponse IS NOT NULL ORDER BY id")
+    return "\n".join(f"- {r['texte']} → {r['reponse']} (répondu le {(r['date_reponse'] or '')[:10]})" for r in rows)
 
 
-def archive_text(limit=900, n=6):
-    """CV déjà envoyés (offres postulées) : les angles déjà pris selon les postes."""
-    rows = db.query("SELECT title, company, cv_md FROM offers WHERE cv_md IS NOT NULL AND status IN "
-                    "('postulee', 'entretien', 'refus', 'offre') ORDER BY id DESC LIMIT ?", (n,))
-    return "\n\n".join(f"--- CV envoyé pour « {r['title']} » ({r['company'] or '?'}) :\n{r['cv_md'][:limit]}"
-                       for r in rows)
+_STOP = {"les", "des", "une", "pour", "avec", "dans", "sur", "par", "aux", "est", "son", "ses", "vous", "nous",
+         "and", "the", "for"}
+
+
+def _words(text):
+    return {w for w in re.findall(r"[a-zà-ÿ0-9+#]{3,}", str(text or "").lower()) if w not in _STOP}
+
+
+def angles(o, n=3):
+    """Les n fiches d'angle de l'archive de CV les plus proches de l'offre (mots en commun)."""
+    target = _words(f"{o['title']} {(o.get('description') or '')[:3000]}")
+    scored = []
+    for f in db.query("SELECT * FROM cv_archive"):
+        comps = json.loads(f["competences"] or "[]")
+        words = _words(f"{f['poste_vise']} {f['titre']} {' '.join(comps)}")
+        if words:
+            scored.append((len(words & target) / len(words) ** 0.5, f["id"], {**f, "competences": comps}))
+    scored.sort(key=lambda x: (-x[0], -x[1]))
+    return [f for sc, _, f in scored[:n] if sc > 0]
+
+
+def angles_text(fiches):
+    return "\n".join(f"- {f['fichier']} ({f['date'] or 'date inconnue'}) : poste visé « {f['poste_vise']} », "
+                     f"titre « {f['titre']} », compétences mises en avant : {', '.join(f['competences'])}"
+                     for f in fiches)
 
 
 def generate_application(s, o):
     """CV et lettre pour une offre, au modèle principal (étape 5 de la mission)."""
-    answers, archive = answers_text(), archive_text()
+    fiches = angles_text(angles(o))
     text = llm.ask(
         f"TA MISSION (contexte) :\n{MISSION}\n\n{_profile(s, 'style_ecriture', 'recits', 'profil')}\n\n"
-        + (f"RÉPONSES D'ANTHONY À TES QUESTIONS FERMÉES :\n{answers}\n\n" if answers else "")
-        + (f"ARCHIVE DES CV DÉJÀ ENVOYÉS (angles déjà pris, pas une source de faits) :\n{archive}\n\n"
-           if archive else "")
+        + (f"ARCHIVE DES CV : LES ANGLES DÉJÀ PRIS LES PLUS PROCHES DE CETTE OFFRE (à reprendre s'ils "
+           f"collent au poste ; ce n'est pas une source de faits) :\n{fiches}\n\n" if fiches else "")
         + f"ANNONCE :\n{_offer_text(o)}\n\n"
         "ÉTAPE 5 (rédaction). Rédige en français, en Markdown :\n"
         "1. Un CV d'une page : titre aligné sur l'intitulé de l'annonce, accroche de 2 à 3 lignes qui "
@@ -160,7 +183,8 @@ def generate_application(s, o):
         "l'annonce), 2 preuves tirées du parcours qui répondent aux 2 exigences principales, une "
         "conclusion sans formule creuse, dans le style du candidat d'après la mémoire.\n"
         f"{RULES} Ne présente aucun fait sur l'entreprise que l'annonce ne mentionne pas.\n\n"
-        "Format de sortie strict, sans rien d'autre :\n===CV===\n(le CV)\n===LETTRE===\n(la lettre)")
+        "Format de sortie strict, sans rien d'autre :\n===CV===\n(le CV)\n===LETTRE===\n(la lettre)",
+        step="redaction")
     if "===LETTRE===" not in text:
         raise llm.LLMError("Réponse du modèle mal formée, réessaie.")
     cv, letter = text.split("===LETTRE===", 1)
@@ -178,7 +202,7 @@ def generate_prep(s, o):
         "## 8 questions probables (avec une piste de réponse tirée du parcours réel)\n"
         "## 5 questions à poser au recruteur\n## À vérifier sur l'entreprise avant l'entretien\n"
         f"{RULES} Base-toi uniquement sur l'annonce : ne présente aucun fait sur l'entreprise "
-        "que l'annonce ne mentionne pas.")
+        "que l'annonce ne mentionne pas.", step="preparation")
     db.execute("UPDATE offers SET prep_md=? WHERE id=?", (text, o["id"]))
     return {"prep_md": text}
 
@@ -190,7 +214,7 @@ def start_interview(s, o, n=6):
         "dans l'ordre : présentation, motivation pour ce poste, deux questions techniques ou "
         "métier précises liées à l'annonce, une mise en situation comportementale, puis une "
         "question difficile sur un point faible réel du profil. Questions courtes, naturelles "
-        "à l'oral, vouvoiement. Format : liste JSON de chaînes.")
+        "à l'oral, vouvoiement. Format : liste JSON de chaînes.", step="entretien")
     qs = [str(q) for q in qs if str(q).strip()] if isinstance(qs, list) else []
     if not qs:
         raise llm.LLMError("Aucune question générée, réessaie.")
@@ -213,7 +237,7 @@ def interview_feedback(s, interview, o, answers):
         "## Retour question par question (ce qui marche, ce qui manque, une meilleure "
         "formulation fondée sur son parcours réel)\n## Tics ou longueurs repérés\n"
         "## 3 priorités pour le prochain entraînement\n"
-        "Sois franc : ne complimente pas une réponse faible.")
+        "Sois franc : ne complimente pas une réponse faible.", step="entretien")
     db.execute("UPDATE interviews SET answers=?, feedback_md=? WHERE id=?",
                (json.dumps(answers, ensure_ascii=False), text, interview["id"]))
     hub.send_event("entretien", f"Entretien simulé pour le poste « {o['title']} » chez "
