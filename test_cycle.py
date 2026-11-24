@@ -168,6 +168,16 @@ class SelectionTest(Base):
         self.assertEqual(cycle.last_selection()["motif_si_vide"], "Peu d'offres en CDI.\nSurtout de l'intérim.")
         self.assertEqual(len(calls), 3)  # notation, explication du marché, questions
 
+    def test_sources_en_erreur_affichees(self):
+        report = {"france_travail": {"error": "Identifiants France Travail manquants (onglet Réglages)."},
+                  "adzuna": {"found": 0, "new": 0}}
+        with mock.patch.object(llm, "_run", fake_llm([])), \
+                mock.patch.object(cycle.sources, "collect_all", return_value=report):
+            r = cycle.run(S, 0)
+        self.assertIn("**Sources en erreur :**\n- France Travail : Identifiants France Travail manquants",
+                      r["report_md"])
+        self.assertNotIn("Adzuna", r["report_md"])
+
     def test_budget_depasse_saute_la_redaction(self):
         offer(1)
         calls = []

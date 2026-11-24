@@ -17,7 +17,8 @@ import hub
 import llm
 import sources
 
-SCORE_LIMIT = 24        # annonces notées par cycle, en un seul appel
+SOURCE_NAMES = {"france_travail": "France Travail", "adzuna": "Adzuna", "mail": "Alertes mail"}
+SCORE_LIMIT = 24       # annonces notées par cycle, en un seul appel
 SELECT_MIN = 80
 SELECT_MAX = 2
 QUESTIONS_PER_DAY = 2
@@ -390,6 +391,9 @@ def _run(s, budget):
         lines.append("## Questions\n" + "\n".join(
             f"- [Q{q['id']}] {q['texte']} ({' / '.join(q['options'])})" for q in asked))
     errors = {k: v["error"] for k, v in collected.items() if isinstance(v, dict) and v.get("error")}
+    if errors:  # sans cela, une source non configurée donne « 0 annonce collectée » sans explication
+        lines.insert(2, "**Sources en erreur :**\n" + "\n".join(
+            f"- {SOURCE_NAMES.get(k, k)} : {e}" for k, e in errors.items()))
     report = {"collected": collected, "prefiltered": removed, "scored": scored,
               "selected": [{k: v for k, v in x.items() if k != "markdown"} for x in selected],
               "market": market, "questions": asked, "errors": errors,
