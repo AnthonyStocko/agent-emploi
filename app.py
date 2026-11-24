@@ -20,6 +20,7 @@ import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import agent
+import coffre
 import cvimport
 import cycle
 import db
@@ -70,6 +71,7 @@ def import_backup(body):
                     con.execute(f"INSERT INTO {table}({', '.join(keys)}) VALUES({', '.join('?' * len(keys))})",
                                 [row[k] for k in keys])
     db.set_settings(body["settings"])
+    db.changed()
     return {"offers": len(offers)}
 
 
@@ -79,6 +81,8 @@ def api_get(path):
         values["_secrets_set"] = [k for k in db.SECRET_KEYS if values.get(k)]
         values["_from_env"] = [k for k in db.ENV_KEYS if os.getenv(k.upper())]
         values["_auth"] = bool(os.getenv("APP_PASSWORD"))
+        values["_coffre"] = {"actif": coffre.enabled(), "pret": coffre.state["ready"],
+                             "derniere_copie": coffre.state["last_saved"], "erreur": coffre.state["error"]}
         for k in db.SECRET_KEYS:  # les secrets ne repartent jamais vers le navigateur
             values.pop(k, None)
         return values
@@ -382,6 +386,9 @@ class Handler(BaseHTTPRequestHandler):
         self._send(401, login_page("Identifiant ou mot de passe incorrect."), "text/html; charset=utf-8")
 
     def _api(self, fn, *args):
+        if coffre.state["restoring"]:  # base pas encore reprise de l'agent chef : réponse provisoire
+            return self._send(503, {"error": "Reprise de la base en cours (l'agent chef peut mettre une "
+                                             "minute à se réveiller) : réessaie dans un instant."})
         try:
             self._send(200, fn(*args))
         except ApiError as e:
@@ -445,6 +452,7 @@ if __name__ == "__main__":
     # Render (ou HOST=0.0.0.0) : écoute sur toutes les interfaces ; sinon, ton poste uniquement
     host = os.getenv("HOST") or ("0.0.0.0" if os.getenv("RENDER") else "127.0.0.1")
     db.init()
+    coffre.start()   # reprise de la base gardée chez l'agent chef, puis copie après chaque écriture
     print(f"Agent emploi prêt : http://{host}:{port}  (Ctrl+C pour arrêter)", flush=True)
     try:
         ThreadingHTTPServer((host, port), Handler).serve_forever()

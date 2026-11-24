@@ -142,10 +142,16 @@ avec un jeton d'abonnement.
    `IMAP_PASSWORD`, `IMAP_SENDERS`, `IMAP_DAYS`. Autres réglages : `CLAUDE_CLI_MODEL`, `CLAUDE_CLI_MODEL_ECO`, `BUDGET_CYCLE_EMPLOI`,
    `CLI_TIMEOUT_SECONDS`, `APP_SESSION_DAYS`, `APP_SESSION_SECRET`.
 
-**Données** : sans disque persistant, la base (CV maître, annonces, suivi) est effacée à chaque
-redéploiement ou redémarrage. Deux solutions : un disque Render monté sur `/data` avec
-`DATA_DIR=/data` (voir `render.yaml`), ou le bouton « Télécharger une sauvegarde » de l'onglet
-Réglages, puis « Restaurer une sauvegarde ».
+**Données** : sur l'offre gratuite, le fichier de la base est effacé à chaque redéploiement et à chaque
+mise en veille. Avec `HUB_URL` et `HUB_TOKEN`, l'agent en garde une copie chez l'agent chef
+(`coffre.py`) : il la dépose quelques secondes après chaque modification (`POST /agent/coffre`) et la
+reprend tout seul au démarrage quand sa base est vide (`GET /agent/coffre`) ; pendant la reprise, les
+routes `/api/` répondent 503. La copie contient le CV maître, les réglages, les annonces, les questions
+et l'archive de CV, jamais les secrets (identifiants France Travail et Adzuna, mot de passe de la boîte
+mail) : mets-les dans les variables d'environnement Render. Tant que la reprise n'a pas réussi, aucune
+copie n'est déposée, et l'agent chef refuse qu'une base vide remplace une copie existante. L'onglet
+Réglages indique la date de la dernière copie. Restent possibles : un disque Render monté sur `/data`
+avec `DATA_DIR=/data` (voir `render.yaml`), et le bouton « Télécharger une sauvegarde ».
 
 Claude Code tourne sans aucun outil, dans un dossier vide, et ne voit que le jeton
 d'abonnement : ni le mot de passe de l'appli ni tes identifiants mail.
@@ -183,6 +189,7 @@ de 2 offres, aucune sélection sous 80, question jamais reposée, budget et jour
 ## Fichiers
 
 - `app.py` : serveur et routes — `hub.py` : lien avec l'agent chef — `agent.py` : mission et prompts (tri, rédaction, coaching)
+- `coffre.py` : copie de la base chez l'agent chef et reprise au démarrage
 - `cycle.py` : la sélection (préfiltre, notation, sélection, questions fermées, consommation)
 - `cvimport.py` : import des CV et profil automatique — `sources.py` : collecte — `llm.py` : appel à Claude Code — `db.py` : base SQLite
 - `static/` : interface

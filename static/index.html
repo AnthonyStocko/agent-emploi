@@ -109,7 +109,8 @@
   </div>
   <div class="card" style="margin-top:16px">
     <h2>💾 Sauvegarde</h2>
-    <p class="hint">Sur Render sans disque persistant, la base est effacée à chaque redéploiement. Télécharge une sauvegarde régulièrement, puis restaure-la si besoin. Le fichier contient ton CV et tes identifiants : garde-le pour toi.</p>
+    <p id="coffre-etat" class="hint"></p>
+    <p class="hint">Sur Render sans disque persistant, le fichier de la base est effacé à chaque redéploiement et à chaque mise en veille. Avec HUB_URL et HUB_TOKEN, l'agent en garde une copie chez l'agent chef et la reprend tout seul au démarrage. Tu peux aussi télécharger une sauvegarde. Le fichier contient ton CV et tes identifiants : garde-le pour toi.</p>
     <div class="toolbar">
       <a href="/api/export" download="agent-emploi-sauvegarde.json"><button type="button">Télécharger une sauvegarde</button></a>
       <button id="btn-restore" type="button">Restaurer une sauvegarde</button>
