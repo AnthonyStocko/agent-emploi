@@ -38,15 +38,21 @@ ECO_MODEL = os.getenv("CLAUDE_CLI_MODEL_ECO", "haiku")
 CHARS_PER_TOKEN = 4  # estimation des jetons à partir de la taille des textes
 
 
+def heberge():
+    """Vrai quand l'appli tourne chez un hébergeur (Render fournit RENDER ; ailleurs, Coolify sur Oracle Cloud
+    ou un serveur à la maison, le Dockerfile fournit HEBERGE=1) : mot de passe et jeton deviennent obligatoires."""
+    return bool(os.getenv("RENDER") or os.getenv("HEBERGE"))
+
+
 def _command(model=None):
     exe = shutil.which("claude")
     if not exe:
         raise LLMError("Claude Code est introuvable. En local : installe-le et lance `claude` une "
                        "fois pour te connecter. Sur Render : déploie avec le Dockerfile.")
     token = (os.getenv("CLAUDE_CODE_OAUTH_TOKEN") or "").strip()
-    if os.getenv("RENDER") and not token:
+    if heberge() and not token:
         raise LLMError("Renseigne CLAUDE_CODE_OAUTH_TOKEN (obtenu avec `claude setup-token`) "
-                       "dans les variables d'environnement Render.")
+                       "dans les variables d'environnement de l'hébergeur.")
     if token.startswith("sk-ant-api"):
         raise LLMError("CLAUDE_CODE_OAUTH_TOKEN contient une clé API (sk-ant-api…), facturée au "
                        "crédit. Mets le jeton d'abonnement (sk-ant-oat01-…) de `claude setup-token`.")

@@ -18,6 +18,12 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY --chown=app:app . .
 USER app
 
-ENV PYTHONUNBUFFERED=1
-# Render fournit le port dans la variable PORT et définit RENDER=true (écoute sur 0.0.0.0)
+# HEBERGE=1 : écoute sur 0.0.0.0, APP_PASSWORD et CLAUDE_CODE_OAUTH_TOKEN obligatoires, cookie Secure,
+# chez n'importe quel hébergeur (Render, Coolify sur Oracle Cloud, serveur à la maison).
+# Le port est lu dans PORT (8765 par défaut). Base persistante : monter un volume et définir DATA_DIR.
+ENV PYTHONUNBUFFERED=1 \
+    HEBERGE=1
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+    CMD python -c "import os,urllib.request; urllib.request.urlopen('http://127.0.0.1:%s/healthz' % os.getenv('PORT','8765'), timeout=4)"
+
 CMD ["python", "app.py"]

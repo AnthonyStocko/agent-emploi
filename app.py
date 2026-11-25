@@ -322,7 +322,7 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(data)
 
     def _cookie(self, value, max_age):
-        secure = "; Secure" if os.getenv("RENDER") else ""
+        secure = "; Secure" if llm.heberge() else ""
         return ("Set-Cookie", f"{SESSION_COOKIE}={value}; Path=/; HttpOnly; SameSite=Lax; "
                               f"Max-Age={max_age}{secure}")
 
@@ -355,9 +355,9 @@ class Handler(BaseHTTPRequestHandler):
                 self._send(401, {"error": HUB_ERRORS[verdict]})
                 return False
         if not os.getenv("APP_PASSWORD"):
-            if os.getenv("RENDER"):
+            if llm.heberge():
                 self._send(503, {"error": "APP_PASSWORD n'est pas défini dans les variables "
-                                          "d'environnement Render."})
+                                          "d'environnement de l'hébergeur."})
                 return False
             if host.split(":")[0] not in ("127.0.0.1", "localhost"):
                 self._send(403, {"error": "Accès local uniquement (définis APP_PASSWORD pour "
@@ -449,8 +449,9 @@ class Handler(BaseHTTPRequestHandler):
 
 if __name__ == "__main__":
     port = int(sys.argv[1] if len(sys.argv) > 1 else os.getenv("PORT") or 8765)
-    # Render (ou HOST=0.0.0.0) : écoute sur toutes les interfaces ; sinon, ton poste uniquement
-    host = os.getenv("HOST") or ("0.0.0.0" if os.getenv("RENDER") else "127.0.0.1")
+    # Hébergé (Render, ou conteneur avec HEBERGE=1) ou HOST=0.0.0.0 : écoute sur toutes les interfaces ;
+    # sinon, ton poste uniquement
+    host = os.getenv("HOST") or ("0.0.0.0" if llm.heberge() else "127.0.0.1")
     db.init()
     coffre.start()   # reprise de la base gardée chez l'agent chef, puis copie après chaque écriture
     print(f"Agent emploi prêt : http://{host}:{port}  (Ctrl+C pour arrêter)", flush=True)
