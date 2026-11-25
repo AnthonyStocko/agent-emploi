@@ -160,6 +160,20 @@ avec `DATA_DIR=/data` (voir `render.yaml`), et le bouton « Télécharger une sa
 Claude Code tourne sans aucun outil, dans un dossier vide, et ne voit que le jeton
 d'abonnement : ni le mot de passe de l'appli ni tes identifiants mail.
 
+## Déploiement en conteneur (Coolify sur Oracle Cloud, ou un serveur à la maison)
+
+Le même `Dockerfile` sert ailleurs que sur Render. L'image définit `HEBERGE=1` : l'appli écoute sur
+0.0.0.0 et applique les mêmes protections que sur Render (sans `APP_PASSWORD`, toute demande est refusée
+avec 503 ; `CLAUDE_CODE_OAUTH_TOKEN` obligatoire ; cookie `Secure`, donc HTTPS devant l'appli). Elle se
+construit pour arm64 (VM Oracle) comme pour amd64 (PC) ; le workflow `Image Docker` le vérifie à chaque
+push.
+
+1. Dans Coolify : nouvelle application depuis ce dépôt, build « Dockerfile », port 8765, contrôle de
+   santé `/healthz`.
+2. Variables : les mêmes que sur Render (ci-dessus), plus `DATA_DIR=/data`.
+3. Volume persistant monté sur `/data` : la base n'est alors plus effacée à chaque déploiement (la copie
+   chez l'agent chef reste un filet de sécurité).
+
 ## Lien avec l'agent chef (facultatif)
 
 Avec les variables `HUB_URL` (adresse de l'agent chef) et `HUB_TOKEN` (secret partagé), l'agent
@@ -179,7 +193,7 @@ retours à la ligne autour du jeton sont ignorés). En cas de refus, la réponse
   La notation traite 8 annonces par appel, 40 par clic au maximum.
 - Tout est stocké dans `data.sqlite3`, à côté du code, y compris tes identifiants en clair.
   Ne partage pas ce fichier et ne le commite pas (il est dans `.gitignore`).
-- En local, le serveur n'écoute que sur 127.0.0.1. Sur Render, tout passe par la page de connexion.
+- En local, le serveur n'écoute que sur 127.0.0.1. Hébergé (Render ou conteneur), tout passe par la page de connexion.
 - L'agent a pour consigne de ne rien inventer, mais relis toujours CV et lettre avant envoi.
 - Statut « Postulée » : l'étiquette « À relancer » apparaît au bout de 7 jours.
 
