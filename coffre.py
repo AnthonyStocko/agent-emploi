@@ -95,7 +95,7 @@ def restore(attempts=1, pause=20):
     if state.get("local_data") is None:
         state["local_data"] = not is_empty()
     if state["local_data"]:
-        state["ready"] = True
+        state.update(ready=True, restoring=False)
         return True
     state["restoring"] = True
     try:
@@ -158,5 +158,7 @@ def start():
         return
     db.listeners.append(schedule)
     state["local_data"] = not is_empty()
-    state["restoring"] = True   # les routes /api/ répondent 503 jusqu'à la fin de la reprise
+    # Les routes /api/ répondent 503 jusqu'à la fin de la reprise, mais seulement s'il y a une reprise à
+    # faire : une base déjà remplie (disque persistant, comme sur le serveur P2) fait foi tout de suite.
+    state["restoring"] = not state["local_data"]
     threading.Thread(target=restore, kwargs={"attempts": 6}, daemon=True).start()
