@@ -124,6 +124,26 @@ class CoffreTest(unittest.TestCase):
                 db.listeners.remove(coffre.schedule)
         sched.assert_called()
 
+    def test_base_remplie_au_demarrage_pas_de_503(self):
+        """Disque persistant (serveur P2) : la base locale fait foi, les routes /api/ répondent tout de suite."""
+        self.remplir()
+        chef = FauxChef(contenu="ancienne copie")
+        with mock.patch.object(hub, "_call", chef), mock.patch("threading.Thread") as thread:
+            coffre.start()
+            self.assertFalse(coffre.state["restoring"])
+            appel = thread.call_args.kwargs
+            self.assertTrue(appel["target"](**appel.get("kwargs", {})))
+        db.listeners.remove(coffre.schedule)
+        self.assertFalse(coffre.state["restoring"])
+        self.assertTrue(coffre.state["ready"])
+        self.assertEqual(db.get_settings()["cv_master"], "Mon CV maître")   # copie non reprise
+
+    def test_base_vide_au_demarrage_503_pendant_la_reprise(self):
+        with mock.patch("threading.Thread"):
+            coffre.start()
+        db.listeners.remove(coffre.schedule)
+        self.assertTrue(coffre.state["restoring"])
+
     def test_sans_agent_chef_rien_ne_change(self):
         with mock.patch.object(hub, "HUB_URL", ""), mock.patch.object(hub, "_call") as call:
             self.assertFalse(coffre.restore())
