@@ -152,7 +152,9 @@ mise en veille. Avec `HUB_URL` et `HUB_TOKEN`, l'agent en garde une copie chez l
 reprend tout seul au démarrage quand sa base est vide (`GET /agent/coffre`) ; pendant la reprise, les
 routes `/api/` répondent 503. La copie contient le CV maître, les réglages, les annonces, les questions
 et l'archive de CV, jamais les secrets (identifiants France Travail et Adzuna, mot de passe de la boîte
-mail) : mets-les dans les variables d'environnement Render. Tant que la reprise n'a pas réussi, aucune
+mail) : mets-les dans les variables d'environnement Render. Un profil saisi à la main, même sans CV
+maître, est copié comme le reste ; un profil enregistré pendant une reprise ratée l'emporte sur la copie
+quand la reprise finit par passer. Tant que la reprise n'a pas réussi, aucune
 copie n'est déposée, et l'agent chef refuse qu'une base vide remplace une copie existante. L'onglet
 Réglages indique la date de la dernière copie. Restent possibles : un disque Render monté sur `/data`
 avec `DATA_DIR=/data` (voir `render.yaml`), et le bouton « Télécharger une sauvegarde ».
