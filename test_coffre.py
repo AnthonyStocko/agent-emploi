@@ -96,6 +96,24 @@ class CoffreTest(unittest.TestCase):
             db.set_settings({"keywords": "autre"})      # base locale plus vide
             self.assertTrue(coffre.save())              # la reprise passe d'abord, puis le dépôt
         self.assertEqual(db.get_settings()["cv_master"], "Mon CV maître")
+        self.assertEqual(db.get_settings()["keywords"], "autre")   # la saisie n'est pas perdue
+
+    def test_profil_sans_cv_garde_apres_redeploiement(self):
+        """Profil saisi à la main, sans CV ni annonce : copié à chaque modification, puis repris."""
+        chef = FauxChef()
+        with mock.patch.object(hub, "_call", chef):
+            self.assertTrue(coffre.restore())
+            db.set_settings({"keywords": "PMO", "location": "Saint-Étienne"})
+            self.assertFalse(coffre.is_empty())
+            self.assertTrue(coffre.save())
+            db.set_settings({"keywords": "Chef de projet"})
+            self.assertTrue(coffre.save())              # pas refusé comme « base vide »
+            with db.connect() as con:
+                con.execute("DELETE FROM settings")
+            coffre.state.update(ready=False, local_data=None)
+            self.assertTrue(coffre.restore())
+        self.assertEqual(db.get_settings()["keywords"], "Chef de projet")
+        self.assertEqual(db.get_settings()["location"], "Saint-Étienne")
 
     def test_ecriture_programme_un_depot(self):
         with mock.patch.object(coffre, "schedule") as sched:

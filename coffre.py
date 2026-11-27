@@ -34,9 +34,18 @@ def enabled():
     return hub.enabled()
 
 
+def local_settings():
+    """Réglages enregistrés dans la base locale (sans les secrets ni les variables d'environnement)."""
+    values = {r["key"]: json.loads(r["value"]) for r in db.query("SELECT key, value FROM settings")}
+    return {k: v for k, v in values.items() if k not in db.SECRET_KEYS}
+
+
 def is_empty():
-    s = db.get_settings()
-    return not (s.get("cv_master") or "").strip() and not db.query("SELECT 1 FROM offers LIMIT 1")
+    """Vide tant qu'aucun réglage du profil n'est rempli et qu'aucune annonce n'existe : un profil saisi
+    sans CV maître (postes, lieu, critères) compte, sinon l'agent chef refuserait sa copie."""
+    if any(str(v).strip() for v in local_settings().values()):
+        return False
+    return not db.query("SELECT 1 FROM offers LIMIT 1")
 
 
 def snapshot():
@@ -49,8 +58,9 @@ def snapshot():
     return base64.b64encode(gzip.compress(raw)).decode("ascii")
 
 
-def load(contenu):
-    """Remplace la base locale par une copie (les secrets locaux sont conservés)."""
+def load(contenu, garder=None):
+    """Remplace la base locale par une copie (les secrets locaux sont conservés). Les réglages de
+    `garder` (saisis depuis le démarrage) l'emportent sur ceux de la copie."""
     data = json.loads(gzip.decompress(base64.b64decode(contenu)).decode("utf-8"))
     if data.get("version") != VERSION:
         raise ValueError("Copie d'une autre version.")
@@ -66,7 +76,8 @@ def load(contenu):
                 if keys:
                     con.execute(f"INSERT INTO {t}({', '.join(keys)}) VALUES({', '.join('?' * len(keys))})",
                                 [row[k] for k in keys])
-        for k, v in (data.get("settings") or {}).items():
+        settings = {**(data.get("settings") or {}), **(garder or {})}
+        for k, v in settings.items():
             if k not in db.SECRET_KEYS:
                 con.execute("INSERT INTO settings(key, value) VALUES(?, ?) "
                             "ON CONFLICT(key) DO UPDATE SET value = excluded.value", (k, json.dumps(v)))
@@ -92,7 +103,10 @@ def restore(attempts=1, pause=20):
             try:
                 r = hub._call("/agent/coffre?agent=emploi", timeout=90)
                 if r.get("contenu"):
-                    counts = load(r["contenu"])
+                    # Base vide au démarrage : tout réglage présent a été saisi depuis (reprise ratée
+                    # puis profil enregistré) ; il prime sur la copie, pour ne pas perdre la saisie.
+                    saisis = {k: v for k, v in local_settings().items() if str(v).strip()}
+                    counts = load(r["contenu"], garder=saisis)
                     print(f"Base reprise de l'agent chef ({r.get('updated_at')}) : {counts}", flush=True)
                 state.update(ready=True, error="")
                 return True
